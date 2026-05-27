@@ -7,9 +7,10 @@ module DC.Parse (
   sat,
   char,
   digit,
-  string
+  string,
+  space
   ) where
-import Control.Applicative (Alternative(empty, (<|>)))
+import Control.Applicative (Alternative(empty, (<|>), many))
 import Data.Char (isDigit)
 
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
@@ -58,3 +59,6 @@ string :: String -> Parser String
 string "" = empty
 string [x] = (: []) <$> char x
 string (x:xs) = (:) <$> char x <*> string xs
+
+space :: Parser String
+space = many $ char ' '
