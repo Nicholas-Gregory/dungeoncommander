@@ -1,6 +1,5 @@
 module Main where
 
-import Tests.Roll ()   
 import System.Exit
 
 main :: IO ()
