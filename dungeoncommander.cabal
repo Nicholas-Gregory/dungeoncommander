@@ -59,7 +59,9 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  DC.Dice
+    exposed-modules:  
+        DC.Dice
+        DC.Parse
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -129,6 +131,7 @@ test-suite dungeoncommander-test
     main-is:          Main.hs
     other-modules:
         Tests.Roll
+        Tests.Parse
 
     -- Test dependencies.
     build-depends:

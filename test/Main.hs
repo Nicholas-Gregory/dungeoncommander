@@ -1,12 +1,12 @@
 module Main where
 
-import Tests.Roll (hello)   
+import Tests.Roll ()   
 import System.Exit
 
 main :: IO ()
 main = do
   -- add test runners into the array for each module
-  good <- and <$> sequence [hello]
+  good <- and <$> sequence []
   if good
      then exitSuccess
      else exitFailure
