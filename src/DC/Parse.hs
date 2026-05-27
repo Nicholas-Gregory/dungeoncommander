@@ -6,7 +6,8 @@ module DC.Parse (
   item,
   sat,
   char,
-  digit
+  digit,
+  string
   ) where
 import Control.Applicative (Alternative(empty, (<|>)))
 import Data.Char (isDigit)
@@ -50,5 +51,10 @@ sat p = Parser $ \case
 char :: Char -> Parser Char
 char c = sat (== c)
 
-digit :: Parser Int
-digit = (\c -> read [c] :: Int) <$> sat isDigit
+digit :: Parser Char
+digit = sat isDigit
+
+string :: String -> Parser String
+string "" = empty
+string [x] = (: []) <$> char x
+string (x:xs) = (:) <$> char x <*> string xs
