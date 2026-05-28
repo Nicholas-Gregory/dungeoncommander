@@ -2,6 +2,7 @@
 {-# LANGUAGE InstanceSigs #-}
 
 module DC.Parse (
+  Parser,
   runParser,
   item,
   sat,
@@ -10,7 +11,7 @@ module DC.Parse (
   string,
   space
   ) where
-import Control.Applicative (Alternative(empty, (<|>), many))
+import Control.Applicative (Alternative(empty, (<|>), some))
 import Data.Char (isDigit)
 
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
@@ -61,4 +62,4 @@ string [x] = (: []) <$> char x
 string (x:xs) = (:) <$> char x <*> string xs
 
 space :: Parser String
-space = many $ char ' '
+space = some $ char ' '

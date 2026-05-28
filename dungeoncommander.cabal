@@ -61,16 +61,16 @@ library
     -- Modules exported by the library.
     exposed-modules:  
         DC.Dice
-        DC.Parse
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    other-modules: DC.Parse
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.18.3.0
+    build-depends:    
+        base ^>=4.18.3.0
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -130,7 +130,6 @@ test-suite dungeoncommander-test
     -- The entrypoint to the test suite.
     main-is:          Main.hs
     other-modules:
-        Tests.Roll
         DC.Parse
 
     -- Test dependencies.
