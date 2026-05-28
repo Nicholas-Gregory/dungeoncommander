@@ -61,6 +61,7 @@ library
     -- Modules exported by the library.
     exposed-modules:  
         DC.Dice
+        DC.Opts
 
     -- Modules included in this library but not exported.
     other-modules: DC.Parse
@@ -70,7 +71,8 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:    
-        base ^>=4.18.3.0
+        base ^>=4.18.3.0,
+        random
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -78,7 +80,7 @@ library
     -- Base language which the package is written in.
     default-language: Haskell2010
 
-executable daemon
+executable dc-daemon
     -- Import common warning flags.
     import:           warnings
 
@@ -102,9 +104,9 @@ executable daemon
     -- Base language which the package is written in.
     default-language: Haskell2010
 
-executable roll
-    main-is: roll.hs
-    hs-source-dirs: app/commands/
+executable dc
+    main-is: client.hs
+    hs-source-dirs: app/
     build-depends: base, dungeoncommander
     default-language: Haskell2010
 

@@ -38,6 +38,10 @@ instance Monad Parser where
   (>>=) :: Parser a -> (a -> Parser b) -> Parser b
   m >>= f = Parser $ \s -> maybe Nothing (\ (v, s') -> runParser (f v) s') (runParser m s) 
 
+instance MonadFail Parser where 
+  fail :: String -> Parser a
+  fail _ = empty
+
 item :: Parser Char
 item = Parser $ \case
   "" -> Nothing
