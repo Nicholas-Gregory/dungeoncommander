@@ -11,7 +11,7 @@ import DC.Parse (
   sat,
   char,
   string, space)
-import Control.Applicative (Alternative((<|>), some), optional)
+import Control.Applicative (Alternative((<|>), some))
 import Data.Char (isLower, isAlphaNum)
 
 alphaNumLower :: Parser Char

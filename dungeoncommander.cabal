@@ -62,6 +62,7 @@ library
     exposed-modules:  
         DC.Dice
         DC.Opts
+        DC.Json
 
     -- Modules included in this library but not exported.
     other-modules: DC.Parse

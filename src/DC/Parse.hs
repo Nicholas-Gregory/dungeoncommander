@@ -9,10 +9,12 @@ module DC.Parse (
   char,
   digit,
   string,
-  space
+  space,
+  whitespace,
+  number
   ) where
 import Control.Applicative (Alternative(empty, (<|>), some))
-import Data.Char (isDigit)
+import Data.Char (isDigit, isSpace)
 
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
 
@@ -67,3 +69,9 @@ string (x:xs) = (:) <$> char x <*> string xs
 
 space :: Parser String
 space = some $ char ' '
+
+whitespace :: Parser String
+whitespace = some $ sat isSpace
+
+number :: Parser Int
+number = (\s -> read s :: Int) <$> some digit

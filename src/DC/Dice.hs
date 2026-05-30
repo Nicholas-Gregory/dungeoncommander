@@ -1,11 +1,10 @@
-module DC.Dice (processExpression) where
+module DC.Dice (
+  processExpression
+  ) where
 
-import DC.Parse ( Parser, char, digit, space, runParser )
-import Control.Applicative (Alternative((<|>), some, empty), optional)
+import DC.Parse ( Parser, char, number, space, runParser )
+import Control.Applicative (Alternative((<|>), some), optional)
 import System.Random (StdGen, randomRs)
-
-number :: Parser Int
-number = (\s -> read s :: Int) <$> some digit
 
 dice :: Parser (Int, Int)
 dice = (\n _ t -> (n, t)) <$> number <*> char 'd' <*> number
@@ -33,5 +32,3 @@ processExpression gen expr = do
   return $ case m of
     Nothing -> rollDice gen n t
     Just m' -> m' + rollDice gen n t
-  
-
