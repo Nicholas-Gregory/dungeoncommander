@@ -13,7 +13,7 @@ module DC.Parse (
   whitespace,
   number
   ) where
-import Control.Applicative (Alternative(empty, (<|>), some))
+import Control.Applicative (Alternative(empty, (<|>), some), optional)
 import Data.Char (isDigit, isSpace)
 
 newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
