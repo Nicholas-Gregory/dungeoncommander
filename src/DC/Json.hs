@@ -1,24 +1,25 @@
-{-# LANGUAGE LambdaCase #-}
-
 module DC.Json (
   jsonString,
   jsonBool,
-  jsonArray
+  jsonArray,
+  jsonObject
 ) where
-import DC.Parse (Parser, item, char, sat, string, whitespace, number)
+import DC.Parse (Parser, item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
-import Data.Map (Map)
+import Data.Map (Map, fromList)
 import Data.Maybe (isNothing)
 
 -- This is only a subset of JSON for use in the context of this app
 -- Not intended to be used as if it were a full implementation of the spec
+
+type JsonObjectMap = Map String JsonValue
 
 data JsonValue
   = JsonNumber Int
   | JsonString String
   | JsonBool Bool
   | JsonArray [JsonValue]
-  | JsonObject (Map String JsonValue)
+  | JsonObject JsonObjectMap
   deriving (Show)
 
 jsonEscape :: Parser String
@@ -40,23 +41,46 @@ jsonInt = do
 
   return (if isNothing sign then n else negate n)
 
+jsonValue :: Parser JsonValue
+jsonValue = (JsonString <$> jsonString)
+           <|> (JsonBool <$> jsonBool)
+           <|> (JsonNumber <$> jsonInt)
+           <|> (JsonArray <$> jsonArray)
+           <|> (JsonObject <$> jsonObject)
+
 jsonArray :: Parser [JsonValue]
 jsonArray = do
   _ <- char '['
-  inner <- many $ ((JsonString <$> jsonString)
-           <|> (JsonBool <$> jsonBool)
-           <|> (JsonNumber <$> jsonInt)
-           <|> (JsonArray <$> jsonArray))
+  _ <- optional whitespace
+  inner <- many $ jsonValue
            <* optional (char ',')
            <* optional whitespace
   _ <- char ']'
 
   return inner
 
--- jsonObject :: Parser JsonValue
--- jsonObject = do
---   let map = empty :: Map String JsonValue
---   _ <- '{'
+jsonKvPair :: Parser (String, JsonValue)
+jsonKvPair = do
+  k <- jsonString
+  _ <- optional space
+  _ <- char ':'
+  _ <- optional space
+  v <- jsonValue
+
+  return (k, v)
+
+jsonObject :: Parser JsonObjectMap
+jsonObject = do
+  _ <- char '{'
+  _ <- optional whitespace
+  inner <- many $ jsonKvPair
+    <* optional space
+    <* optional (char ',')
+    <* optional space
+  _ <- optional whitespace
+  _ <- char '}'
+
+  return $ fromList inner
   
   
 
