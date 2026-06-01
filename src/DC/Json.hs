@@ -2,12 +2,16 @@ module DC.Json (
   jsonString,
   jsonBool,
   jsonArray,
-  jsonObject
+  jsonObject,
+  writeJsonValue,
+  JsonValue(..)
 ) where
 import DC.Parse (Parser, item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
-import Data.Map (Map, fromList)
+import Data.Map (Map, fromList, toList)
 import Data.Maybe (isNothing)
+import Data.Foldable (foldl')
+
 
 -- This is only a subset of JSON for use in the context of this app
 -- Not intended to be used as if it were a full implementation of the spec
@@ -21,6 +25,19 @@ data JsonValue
   | JsonArray [JsonValue]
   | JsonObject JsonObjectMap
   deriving (Show)
+
+writeJsonValue :: JsonValue -> String
+writeJsonValue (JsonNumber n) = show n
+writeJsonValue (JsonString s) = '\"' : s ++ "\""
+writeJsonValue (JsonBool b) = if b then "true" else "false"
+writeJsonValue (JsonArray []) = "[]"
+writeJsonValue (JsonArray [a]) = '[' : writeJsonValue a ++ "]"
+writeJsonValue (JsonArray a) = '[' : writeJsonValue (head a) ++ foldl' (\acc x -> acc ++ "," ++ writeJsonValue x) "" (tail a) ++ "]"
+writeJsonValue (JsonObject o) = case toList o of
+  [] -> "{}"
+  [(k, v)] -> '{' : "\"" ++ k ++ "\":" ++ writeJsonValue v ++ "}"
+  m ->  let (k, v) = head m 
+        in '{' : "\"" ++ k ++ "\":" ++ writeJsonValue v ++ foldl' (\acc (k', v') -> acc ++ "," ++ "\"" ++ k' ++ "\":" ++ writeJsonValue v') "" (tail m) ++ "}"
 
 jsonEscape :: Parser String
 jsonEscape = (\_ c -> '\\' : [c]) <$> char '\\' <*> item
