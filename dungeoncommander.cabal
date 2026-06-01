@@ -63,6 +63,7 @@ library
         DC.Dice
         DC.Opts
         DC.Json
+        DC.Actions
 
     -- Modules included in this library but not exported.
     other-modules: DC.Parse

@@ -6,7 +6,7 @@ module DC.Json (
   writeJsonValue,
   JsonValue(..)
 ) where
-import DC.Parse (Parser, item, char, sat, string, whitespace, number, space)
+import DC.Parse (Parser (runParser), item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
 import Data.Map (Map, fromList, toList)
 import Data.Maybe (isNothing)
@@ -32,12 +32,32 @@ writeJsonValue (JsonString s) = '\"' : s ++ "\""
 writeJsonValue (JsonBool b) = if b then "true" else "false"
 writeJsonValue (JsonArray []) = "[]"
 writeJsonValue (JsonArray [a]) = '[' : writeJsonValue a ++ "]"
-writeJsonValue (JsonArray a) = '[' : writeJsonValue (head a) ++ foldl' (\acc x -> acc ++ "," ++ writeJsonValue x) "" (tail a) ++ "]"
+writeJsonValue (JsonArray a) = '[' : writeJsonValue (head a) 
+  ++ foldl' (\acc x -> 
+    acc 
+    ++ "," 
+    ++ writeJsonValue x) "" (tail a) 
+  ++ "]"
 writeJsonValue (JsonObject o) = case toList o of
   [] -> "{}"
-  [(k, v)] -> '{' : "\"" ++ k ++ "\":" ++ writeJsonValue v ++ "}"
+  [(k, v)] -> '{' : "\"" 
+    ++ k 
+    ++ "\":" 
+    ++ writeJsonValue v 
+    ++ "}"
   m ->  let (k, v) = head m 
-        in '{' : "\"" ++ k ++ "\":" ++ writeJsonValue v ++ foldl' (\acc (k', v') -> acc ++ "," ++ "\"" ++ k' ++ "\":" ++ writeJsonValue v') "" (tail m) ++ "}"
+        in '{' : "\"" 
+          ++ k 
+          ++ "\":" 
+          ++ writeJsonValue v 
+          ++ foldl' (\acc (k', v') -> 
+            acc 
+            ++ "," 
+            ++ "\"" 
+            ++ k' 
+            ++ "\":" 
+            ++ writeJsonValue v') "" (tail m) 
+          ++ "}"
 
 jsonEscape :: Parser String
 jsonEscape = (\_ c -> '\\' : [c]) <$> char '\\' <*> item
@@ -98,7 +118,3 @@ jsonObject = do
   _ <- char '}'
 
   return $ fromList inner
-  
-  
-
-  
