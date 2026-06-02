@@ -98,7 +98,7 @@ executable dc-daemon
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.18.3.0,
-        dungeoncommander
+        dungeoncommander, network
 
     -- Directories containing source files.
     hs-source-dirs:   app
@@ -109,7 +109,7 @@ executable dc-daemon
 executable dc
     main-is: client.hs
     hs-source-dirs: app/
-    build-depends: base, dungeoncommander
+    build-depends: base, dungeoncommander, network, bytestring
     default-language: Haskell2010
 
 test-suite dungeoncommander-test
