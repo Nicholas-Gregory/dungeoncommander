@@ -111,9 +111,9 @@ jsonObject = do
   _ <- char '{'
   _ <- optional whitespace
   inner <- many $ jsonKvPair
-    <* optional space
+    <* optional whitespace
     <* optional (char ',')
-    <* optional space
+    <* optional whitespace
   _ <- optional whitespace
   _ <- char '}'
 
