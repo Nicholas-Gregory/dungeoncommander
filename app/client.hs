@@ -1,7 +1,7 @@
 module Main where
 
 import System.Environment (getArgs)
-import DC.Opts (command)
+import DC.Opts (command, cliArg)
 import Network.Socket
 import qualified Data.ByteString.Char8 as C
 import Network.Socket.ByteString (sendAll, recv)
@@ -27,6 +27,7 @@ main = withSocketsDo $ do
 
 
   let stateParse = runParser jsonObject input
+  let optsParse = map fst <$> mapM (runParser cliArg) args
 
   print stateParse
 
