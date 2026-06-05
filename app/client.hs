@@ -20,14 +20,14 @@ main = withSocketsDo $ do
     then do
       print "here"
       connect sock (SockAddrUnix "/tmp/dc.sock")
-      sendAll sock $ C.pack "REQUEST"
+      sendAll sock $ C.pack "{ \"action\": \"GET\" }"
       r <- recv sock 4096
       return (C.unpack r)
     else getContents
 
 
-  let parse = runParser jsonObject input
+  let stateParse = runParser jsonObject input
 
-  print parse
+  print stateParse
 
                   

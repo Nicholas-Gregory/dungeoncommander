@@ -99,7 +99,7 @@ executable dc-daemon
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.18.3.0,
-        dungeoncommander, network, bytestring
+        dungeoncommander, network, bytestring, containers
 
     -- Directories containing source files.
     hs-source-dirs:   app

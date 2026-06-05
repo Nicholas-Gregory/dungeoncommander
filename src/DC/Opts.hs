@@ -3,7 +3,8 @@ module DC.Opts (
   switch,
   arg,
   optArg,
-  command
+  command,
+  cliArgs
 ) where
 
 import DC.Parse (
@@ -11,8 +12,15 @@ import DC.Parse (
   sat,
   char,
   string, space)
-import Control.Applicative (Alternative((<|>), some))
+import Control.Applicative (Alternative((<|>), some, many))
 import Data.Char (isLower, isAlphaNum)
+
+data Option = 
+  Switch Char |
+  Flag String |
+  Arg String |
+  OptArg (String, String)
+  deriving (Show)
 
 alphaNumLower :: Parser Char
 alphaNumLower = sat (liftA2 (&&) isAlphaNum isLower)
@@ -40,4 +48,14 @@ optArg = do
 command :: Parser String
 command = some $ alphaNumLower <|> char '-'
 
+
+cliArgs :: Parser (String, [Option])
+cliArgs = do
+  c <- command
+  _ <- many space
+  o <- many $ (Flag <$> flag)
+    <|> (Switch <$> switch)
+    <|> (Arg <$> arg)
+    <|> (OptArg <$> optArg)
   
+  return (c, o)

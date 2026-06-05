@@ -4,6 +4,7 @@ module DC.Json (
   jsonArray,
   jsonObject,
   writeJsonValue,
+  JsonObjectMap,
   JsonValue(..)
 ) where
 import DC.Parse (Parser (runParser), item, char, sat, string, whitespace, number, space)

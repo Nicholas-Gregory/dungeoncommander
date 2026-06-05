@@ -6,15 +6,19 @@ import Network.Socket.ByteString (recv, sendAll)
 import qualified Data.ByteString.Char8 as C
 import System.IO (readFile)
 import Control.Concurrent (forkFinally)
+import qualified Data.Map as M
+import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject)
+import DC.Parse (Parser(runParser))
+
+get :: Socket -> IO ()
+get conn = do
+  contents <- C.readFile "db.json"
+  sendAll conn contents
 
 handleClient :: Socket -> IO ()
 handleClient conn = do
   msg <- recv conn 4096
-  case C.unpack msg of
-    "REQUEST" -> do
-      contents <- C.readFile "db.json"
-      sendAll conn contents
-    _ -> return ()
+  get conn
 
 main :: IO ()
 main = withSocketsDo $ do
