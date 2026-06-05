@@ -4,7 +4,8 @@ module DC.Opts (
   arg,
   optArg,
   command,
-  cliArg
+  cliArg,
+  Option(..)
 ) where
 
 import DC.Parse (
@@ -24,7 +25,7 @@ data Option =
   deriving (Show)
 
 alphaNumLower :: Parser Char
-alphaNumLower = sat (liftA2 (&&) isAlphaNum isLower)
+alphaNumLower = sat (liftA2 (||) isAlphaNum isLower)
 
 flag :: Parser String
 flag = do
@@ -50,7 +51,10 @@ command :: Parser String
 command = some $ alphaNumLower <|> char '-'
 
 cliArg :: Parser Option
-cliArg = (SubCommand <$> command)
-  <|> (Flag <$> flag)
+cliArg = (Flag <$> flag)
   <|> (Switch <$> switch)
   <|> (Arg <$> arg)
+-- cliArg = (SubCommand <$> command)
+--   <|> (Flag <$> flag)
+--   <|> (Switch <$> switch)
+--   <|> (Arg <$> arg)
