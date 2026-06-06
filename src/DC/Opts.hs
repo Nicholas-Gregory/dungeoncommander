@@ -54,7 +54,3 @@ cliArg :: Parser Option
 cliArg = (Flag <$> flag)
   <|> (Switch <$> switch)
   <|> (Arg <$> arg)
--- cliArg = (SubCommand <$> command)
---   <|> (Flag <$> flag)
---   <|> (Switch <$> switch)
---   <|> (Arg <$> arg)

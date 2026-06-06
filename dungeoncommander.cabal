@@ -110,7 +110,13 @@ executable dc-daemon
 executable dc
     main-is: client.hs
     hs-source-dirs: app/
-    build-depends: base, dungeoncommander, network, bytestring, random
+    build-depends: 
+        base, 
+        dungeoncommander, 
+        network, 
+        bytestring, 
+        random,
+        containers
     default-language: Haskell2010
 
 test-suite dungeoncommander-test

@@ -9,9 +9,10 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject)
+import DC.Json (jsonObject, writeJsonValue, getScene)
 import System.Random (getStdGen)
 import DC.Dice (processExpression)
+import qualified Data.Map as M
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -33,5 +34,9 @@ main = withSocketsDo $ do
 
   case optsParse of
     Just ((Arg "roll"):[Arg expr]) -> print $ processExpression gen expr
+    Just ((Arg "scene"):[Arg name]) -> case runParser jsonObject input of 
+      Just (v, "") -> print $ writeJsonValue <$> getScene v name
+      Just (_, r) -> error $ "Incomplete parse of input JSON. Leftovers: " ++ r
+      Nothing -> error "JSON parsing error."
     _ -> print "Usage: <subcommand> [options]"
                   

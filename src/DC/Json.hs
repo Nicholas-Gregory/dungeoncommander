@@ -4,12 +4,13 @@ module DC.Json (
   jsonArray,
   jsonObject,
   writeJsonValue,
+  getScene,
   JsonObjectMap,
   JsonValue(..)
 ) where
 import DC.Parse (Parser (runParser), item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
-import Data.Map (Map, fromList, toList)
+import qualified Data.Map as M (Map, fromList, toList, lookup)
 import Data.Maybe (isNothing)
 import Data.Foldable (foldl')
 
@@ -17,7 +18,7 @@ import Data.Foldable (foldl')
 -- This is only a subset of JSON for use in the context of this app
 -- Not intended to be used as if it were a full implementation of the spec
 
-type JsonObjectMap = Map String JsonValue
+type JsonObjectMap = M.Map String JsonValue
 
 data JsonValue
   = JsonNumber Int
@@ -39,7 +40,7 @@ writeJsonValue (JsonArray a) = '[' : writeJsonValue (head a)
     ++ "," 
     ++ writeJsonValue x) "" (tail a) 
   ++ "]"
-writeJsonValue (JsonObject o) = case toList o of
+writeJsonValue (JsonObject o) = case M.toList o of
   [] -> "{}"
   [(k, v)] -> '{' : "\"" 
     ++ k 
@@ -118,4 +119,12 @@ jsonObject = do
   _ <- optional whitespace
   _ <- char '}'
 
-  return $ fromList inner
+  return $ M.fromList inner
+
+getScene :: JsonObjectMap -> String -> Maybe JsonValue
+getScene o name = do
+  scenes <- M.lookup "scenes" o
+  
+  case scenes of
+    JsonObject m -> M.lookup name m
+    _ -> Nothing

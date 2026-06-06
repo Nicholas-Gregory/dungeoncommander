@@ -1,22 +1,20 @@
 {
-  "scenes": [
-    {
-      "room": {
-        "actors": [
-          {
-            "name": "Borgalfast",
-            "race": "Goblin",
-            "abilities": {
-              "str": 1,
-              "dex": 2,
-              "con": 3,
-              "int": 4,
-              "wis": 5,
-              "cha": 6
-            }
+  "scenes": {
+    "room": {
+      "actors": [
+        {
+          "name": "Borgalfast",
+          "race": "Goblin",
+          "abilities": {
+            "str": 1,
+            "dex": 2,
+            "con": 3,
+            "int": 4,
+            "wis": 5,
+            "cha": 6
           }
-        ]
-      }
+        }
+      ]
     }
-  ]
+  }
 }
