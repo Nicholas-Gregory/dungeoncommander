@@ -4,7 +4,8 @@ module DC.Json (
   jsonArray,
   jsonObject,
   writeJsonValue,
-  getScene,
+  isJsonArray,
+  isJsonObject,
   JsonObjectMap,
   JsonValue(..)
 ) where
@@ -82,18 +83,18 @@ jsonInt = do
 
 jsonValue :: Parser JsonValue
 jsonValue = (JsonString <$> jsonString)
-           <|> (JsonBool <$> jsonBool)
-           <|> (JsonNumber <$> jsonInt)
-           <|> (JsonArray <$> jsonArray)
-           <|> (JsonObject <$> jsonObject)
+  <|> (JsonBool <$> jsonBool)
+  <|> (JsonNumber <$> jsonInt)
+  <|> (JsonArray <$> jsonArray)
+  <|> (JsonObject <$> jsonObject)
 
 jsonArray :: Parser [JsonValue]
 jsonArray = do
   _ <- char '['
   _ <- optional whitespace
   inner <- many $ jsonValue
-           <* optional (char ',')
-           <* optional whitespace
+    <* optional (char ',')
+    <* optional whitespace
   _ <- char ']'
 
   return inner
@@ -121,10 +122,12 @@ jsonObject = do
 
   return $ M.fromList inner
 
-getScene :: JsonObjectMap -> String -> Maybe JsonValue
-getScene o name = do
-  scenes <- M.lookup "scenes" o
-  
-  case scenes of
-    JsonObject m -> M.lookup name m
-    _ -> Nothing
+isJsonObject :: JsonValue -> Bool
+isJsonObject v = case v of
+  JsonObject _ -> True
+  _ -> False
+
+isJsonArray :: JsonValue -> Bool
+isJsonArray v = case v of
+  JsonArray _ -> True
+  _ -> False

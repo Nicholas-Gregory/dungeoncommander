@@ -9,10 +9,14 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject, writeJsonValue, getScene)
+import DC.Json (jsonObject, writeJsonValue, JsonValue (JsonObject))
 import System.Random (getStdGen)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
+
+processCommand :: [Option] -> JsonValue -> Maybe JsonValue
+processCommand [Arg "select", Arg key] (JsonObject o) = M.lookup key o
+
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -28,15 +32,17 @@ main = withSocketsDo $ do
       return (C.unpack r)
     else getContents
 
+  let state = JsonObject . fst <$> runParser jsonObject input
+  let opts = map fst <$> mapM (runParser cliArg) args
+  
+  let r = (do
+        o <- opts
+        s <- state
 
-  let stateParse = runParser jsonObject input
-  let optsParse = map fst <$> mapM (runParser cliArg) args
+        processCommand o s)
+  
+  case r of
+    Just v -> putStrLn $ writeJsonValue v
+    Nothing -> putStrLn "Parsing error, or couldn't find requested entity."
 
-  case optsParse of
-    Just ((Arg "roll"):[Arg expr]) -> print $ processExpression gen expr
-    Just ((Arg "scene"):[Arg name]) -> case runParser jsonObject input of 
-      Just (v, "") -> print $ writeJsonValue <$> getScene v name
-      Just (_, r) -> error $ "Incomplete parse of input JSON. Leftovers: " ++ r
-      Nothing -> error "JSON parsing error."
-    _ -> print "Usage: <subcommand> [options]"
                   
