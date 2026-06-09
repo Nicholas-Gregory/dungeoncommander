@@ -27,7 +27,7 @@ data JsonValue
   | JsonBool Bool
   | JsonArray [JsonValue]
   | JsonObject JsonObjectMap
-  deriving (Show)
+  deriving (Show, Eq)
 
 writeJsonValue :: JsonValue -> String
 writeJsonValue (JsonNumber n) = show n

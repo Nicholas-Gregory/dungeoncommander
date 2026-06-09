@@ -1,7 +1,7 @@
 module Main where
 
 import System.Environment (getArgs)
-import DC.Opts (command, cliArg, Option (SubCommand, Arg))
+import DC.Opts (command, cliArg, Option (..))
 import Network.Socket
 import qualified Data.ByteString.Char8 as C
 import Network.Socket.ByteString (sendAll, recv)
@@ -9,13 +9,24 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin, hIsTerminalDevice)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject, writeJsonValue, JsonValue (JsonObject))
+import DC.Json (jsonObject, writeJsonValue, JsonValue (..))
 import System.Random (getStdGen)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
+import Debug.Trace (trace)
+
+filterEquals :: JsonValue -> String -> JsonValue -> JsonValue
+filterEquals (JsonObject json) k v = JsonObject $ M.filter (\(JsonObject x) -> case M.lookup k x of 
+  Just v' -> v == v'
+  Nothing -> False) json
+
 
 processCommand :: [Option] -> JsonValue -> Maybe JsonValue
 processCommand [Arg "select", Arg key] (JsonObject o) = M.lookup key o
+processCommand (Arg "filter":xs) (JsonObject o) = case xs of
+  [Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
+  [Flag "equals", Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
+  [Switch 'e', Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
 
 
 main :: IO ()

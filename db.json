@@ -30,6 +30,9 @@
         "level": 1
       },
       "inventory": ["item_001"]
+    },
+    "actor_002": {
+      "name": "Not Borgleson"
     }
   },
 
