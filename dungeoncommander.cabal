@@ -65,6 +65,7 @@ library
         DC.Json
         DC.Actions
         DC.Parse
+        DC.Types
 
     -- Modules included in this library but not exported.
     

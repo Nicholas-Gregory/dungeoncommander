@@ -11,6 +11,7 @@ import Control.Monad (join)
 import DC.Parse (Parser(runParser))
 import DC.Json (jsonObject, writeJsonValue, JsonValue (..))
 import System.Random (getStdGen)
+import Text.Read (readMaybe)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
 import Debug.Trace (trace)
@@ -27,6 +28,14 @@ processCommand (Arg "filter":xs) (JsonObject o) = case xs of
   [Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
   [Flag "equals", Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
   [Switch 'e', Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
+processCommand [Arg "set", Arg k, Arg v] (JsonObject o) =
+  let newVal = case (readMaybe v :: Maybe Int) of
+        Just n -> JsonNumber n
+        Nothing -> case v of
+          "true" -> JsonBool True
+          "false" -> JsonBool False
+          _ -> JsonString v
+  in Just $ JsonObject $ M.adjust (const newVal) k o
 
 
 main :: IO ()
