@@ -65,7 +65,7 @@ library
         DC.Json
         DC.Actions
         DC.Parse
-        DC.Types
+        DC.Entity
 
     -- Modules included in this library but not exported.
     
@@ -100,7 +100,8 @@ executable dc-daemon
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.18.3.0,
-        dungeoncommander, network, bytestring, containers
+        dungeoncommander, network, bytestring, containers,
+        directory
 
     -- Directories containing source files.
     hs-source-dirs:   app
@@ -142,7 +143,7 @@ test-suite dungeoncommander-test
     -- The entrypoint to the test suite.
     main-is:          Main.hs
     other-modules:
-        DC.Parse
+        DC.Parse, DC.Entity
 
     -- Test dependencies.
     build-depends:

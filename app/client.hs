@@ -9,34 +9,13 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin, hIsTerminalDevice)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject, writeJsonValue, JsonValue (..))
+import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson))
 import System.Random (getStdGen)
 import Text.Read (readMaybe)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
 import Debug.Trace (trace)
-
-filterEquals :: JsonValue -> String -> JsonValue -> JsonValue
-filterEquals (JsonObject json) k v = JsonObject $ M.filter (\(JsonObject x) -> case M.lookup k x of 
-  Just v' -> v == v'
-  Nothing -> False) json
-
-
-processCommand :: [Option] -> JsonValue -> Maybe JsonValue
-processCommand [Arg "select", Arg key] (JsonObject o) = M.lookup key o
-processCommand (Arg "filter":xs) (JsonObject o) = case xs of
-  [Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
-  [Flag "equals", Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
-  [Switch 'e', Arg k, Arg v] -> Just $ filterEquals (JsonObject o) k (JsonString v)
-processCommand [Arg "set", Arg k, Arg v] (JsonObject o) =
-  let newVal = case (readMaybe v :: Maybe Int) of
-        Just n -> JsonNumber n
-        Nothing -> case v of
-          "true" -> JsonBool True
-          "false" -> JsonBool False
-          _ -> JsonString v
-  in Just $ JsonObject $ M.adjust (const newVal) k o
-
+import DC.Entity(Entity) 
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -54,15 +33,17 @@ main = withSocketsDo $ do
 
   let state = JsonObject . fst <$> runParser jsonObject input
   let opts = map fst <$> mapM (runParser cliArg) args
-  
-  let r = (do
-        o <- opts
-        s <- state
+  let entityMap = (case state of
+        Just (JsonObject o) -> M.lookup "entities" o
+        Nothing -> Nothing)
 
-        processCommand o s)
-  
-  case r of
-    Just v -> putStrLn $ writeJsonValue v
-    Nothing -> putStrLn "Parsing error, or couldn't find requested entity."
+  case entityMap of
+    Just (JsonObject o) -> case M.lookup "money" o of
+      Just (JsonObject o') ->
+        case fromJson (JsonObject o') :: Maybe Entity of
+          Just e  -> print e
+          Nothing -> putStrLn "failed to parse borgleson entity"
+      _ -> putStrLn "borgleson not found or not an object"
+    _ -> putStrLn "no entities in state"
 
-                  
+

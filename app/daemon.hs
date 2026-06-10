@@ -9,9 +9,15 @@ import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
 import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject)
 import DC.Parse (Parser(runParser))
+import System.Directory (doesFileExist)
+
+createEmptyDb :: IO ()
+createEmptyDb = writeFile "db.json" "{\"entities\":[]}"
+
 
 get :: Socket -> IO ()
 get conn = do
+  dbExists <- doesFileExist "db.json"
   contents <- C.readFile "db.json"
   sendAll conn contents
 

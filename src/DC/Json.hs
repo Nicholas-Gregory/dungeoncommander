@@ -1,3 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
+
 module DC.Json (
   jsonString,
   jsonBool,
@@ -6,8 +10,12 @@ module DC.Json (
   writeJsonValue,
   isJsonArray,
   isJsonObject,
+  getField,
   JsonObjectMap,
-  JsonValue(..)
+  JsonValue(..),
+  FromJson(..),
+  ToJson(..),
+  IsJson(..)
 ) where
 import DC.Parse (Parser (runParser), item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
@@ -131,3 +139,48 @@ isJsonArray :: JsonValue -> Bool
 isJsonArray v = case v of
   JsonArray _ -> True
   _ -> False
+
+
+class FromJson a where
+  fromJson :: JsonValue -> Maybe a
+
+class ToJson a where
+  toJson :: a -> JsonValue
+
+class IsJson a where
+  fromValue :: JsonValue -> Maybe a
+
+instance IsJson String where
+  fromValue :: JsonValue -> Maybe String
+  fromValue (JsonString s) = Just s
+  fromValue _ = Nothing
+
+instance IsJson Int where
+  fromValue :: JsonValue -> Maybe Int
+  fromValue (JsonNumber n) = Just n
+  fromValue _ = Nothing
+
+instance IsJson Bool where
+  fromValue :: JsonValue -> Maybe Bool
+  fromValue (JsonBool b) = Just b
+  fromValue _ = Nothing
+
+instance IsJson [String] where
+  fromValue :: JsonValue -> Maybe [String]
+  fromValue (JsonArray a) = mapM (\case
+    (JsonString s) -> Just s
+    _ -> Nothing) a
+  fromValue _ = Nothing
+
+instance IsJson (Int, Int) where
+  fromValue :: JsonValue -> Maybe (Int, Int)
+  fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Just (a, b)
+  fromValue _ = Nothing
+
+instance IsJson (String, String) where
+  fromValue :: JsonValue -> Maybe (String, String)
+  fromValue (JsonArray [JsonString a, JsonString b]) = Just (a, b)
+  fromValue _ = Nothing
+
+getField :: IsJson a => String -> JsonObjectMap -> Maybe a
+getField k o = maybe Nothing fromValue (M.lookup k o)
