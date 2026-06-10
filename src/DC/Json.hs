@@ -147,6 +147,30 @@ class FromJson a where
 class ToJson a where
   toJson :: a -> JsonValue
 
+instance ToJson String where
+  toJson :: String -> JsonValue
+  toJson = JsonString
+
+instance ToJson Int where
+  toJson :: Int -> JsonValue
+  toJson = JsonNumber
+
+instance ToJson Bool where
+  toJson :: Bool -> JsonValue
+  toJson = JsonBool
+
+instance ToJson [String] where
+  toJson :: [String] -> JsonValue
+  toJson = JsonArray . map JsonString
+
+instance ToJson (Int, Int) where
+  toJson :: (Int, Int) -> JsonValue
+  toJson (a, b) = JsonArray [JsonNumber a, JsonNumber b]
+
+instance ToJson (String, String) where
+  toJson :: (String, String) -> JsonValue
+  toJson (a, b) = JsonArray [JsonString a, JsonString b]
+
 class IsJson a where
   fromValue :: JsonValue -> Maybe a
 

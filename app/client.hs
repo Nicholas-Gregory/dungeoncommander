@@ -38,7 +38,7 @@ main = withSocketsDo $ do
         Nothing -> Nothing)
 
   case entityMap of
-    Just (JsonObject o) -> case M.lookup "money" o of
+    Just (JsonObject o) -> case M.lookup "theScene" o of
       Just (JsonObject o') ->
         case fromJson (JsonObject o') :: Maybe Entity of
           Just e  -> print e
