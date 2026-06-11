@@ -17,6 +17,8 @@ import qualified Data.Map as M
 import Debug.Trace (trace)
 import DC.Entity(Entity) 
 
+
+
 main :: IO ()
 main = withSocketsDo $ do
   args <- getArgs
@@ -33,17 +35,6 @@ main = withSocketsDo $ do
 
   let state = JsonObject . fst <$> runParser jsonObject input
   let opts = map fst <$> mapM (runParser cliArg) args
-  let entityMap = (case state of
-        Just (JsonObject o) -> M.lookup "entities" o
-        Nothing -> Nothing)
-
-  case entityMap of
-    Just (JsonObject o) -> case M.lookup "theScene" o of
-      Just (JsonObject o') ->
-        case fromJson (JsonObject o') :: Maybe Entity of
-          Just e  -> print e
-          Nothing -> putStrLn "failed to parse borgleson entity"
-      _ -> putStrLn "borgleson not found or not an object"
-    _ -> putStrLn "no entities in state"
+  
 
 

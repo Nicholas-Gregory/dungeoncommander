@@ -19,6 +19,7 @@ get :: Socket -> IO ()
 get conn = do
   dbExists <- doesFileExist "db.json"
   contents <- C.readFile "db.json"
+  -- Protocol unimplemented
   sendAll conn contents
 
 handleClient :: Socket -> IO ()
