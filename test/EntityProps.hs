@@ -1,9 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module EntityProps (props) where
 
-import Test.QuickCheck
-import DC.Entity
 import DC.Json
+import Test.QuickCheck 
+import DC.Types (Ability(..))
+import DC.Entity 
 
 instance Arbitrary EntityChildType where
   arbitrary = elements [ ActorLocation
@@ -30,13 +31,25 @@ instance Arbitrary EntityInfo where
 instance Arbitrary ItemInfo where
   arbitrary = ItemInfo <$> arbitrary <*> arbitrary
 
+instance Arbitrary Ability where
+  arbitrary = elements [ Charisma
+                        ,Intelligence
+                        ,Constitution
+                        ,Strength
+                        ,Dexterity
+                        ,Wisdom
+                       ]
+
+instance Arbitrary SaveProficiencies where
+  arbitrary = SaveProficiencies <$> listOf arbitrary
+
 instance Arbitrary Entity where
   arbitrary = do
     let tupInt = (,) <$> arbitrary <*> arbitrary
         tupStr = (,) <$> arbitrary <*> arbitrary
     oneof
       [ Scene <$> arbitrary <*> tupInt
-      , Actor <$> arbitrary <*> tupInt <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      , Actor <$> arbitrary <*> tupInt <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       , Object <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> tupInt
       , Trap <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> tupStr <*> tupInt
       , Item <$> arbitrary <*> arbitrary

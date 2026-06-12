@@ -3,9 +3,12 @@
 module DC.Actions (
   getAbilityScore,
   getAbilityModifier,
-  abilityCheck
+  abilityCheck,
+  hasSaveProficiency,
+  getProficiencyBonus,
+  savingThrow
 ) where
-import DC.Entity (Entity(..))
+import DC.Entity (Entity(..), SaveProficiencies(..))
 import DC.Types (Ability(..), CheckSuccess)
 import DC.Dice (rollDice)
 import System.Random (StdGen)
@@ -25,3 +28,22 @@ getAbilityModifier e a = (\s -> (s - 10) `div` 2) <$> getAbilityScore e a
 abilityCheck :: StdGen -> Entity -> Ability -> Int -> Maybe CheckSuccess
 abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc) 
   <$> getAbilityModifier entity ability
+
+hasSaveProficiency :: Entity -> Ability -> Maybe Bool
+hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Just $ ability `elem` xs
+hasSaveProficiency _ _ = Nothing
+
+getProficiencyBonus :: Entity -> Maybe Int
+getProficiencyBonus (Actor { level }) = Just $ ((level - 1) `div` 4) + 2
+getProficiencyBonus _ = Nothing
+
+savingThrow :: StdGen -> Entity -> Ability -> Int -> Maybe CheckSuccess
+savingThrow gen entity ability dc = do
+  pro <- hasSaveProficiency entity ability
+  abilityModifier <- getAbilityModifier entity ability
+  proficiencyBonus <- getProficiencyBonus entity
+  let roll = rollDice gen 1 20
+
+  return $ if pro 
+    then roll + abilityModifier + proficiencyBonus >= dc
+    else roll + abilityModifier >= dc

@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module DC.Entity (
   EntityChildType (..),
@@ -6,12 +7,13 @@ module DC.Entity (
   Entity (..),
   EntityChildren (..),
   EntityInfo (..),
-  Proficiency(..),
-  ItemInfo (..)
+  SaveProficiencies(..),
+  ItemInfo (..),
 ) where
 import DC.Json (FromJson(..), IsJson (fromValue), JsonValue (JsonObject, JsonString, JsonArray), getField, ToJson (toJson))
 import qualified Data.Map as M
 import Data.List (find)
+import DC.Types (Ability (..))
 
 data EntityChildType =
   ActorLocation |
@@ -38,7 +40,7 @@ data EntityInfo = EntityInfo {
   name :: String
 } deriving (Show, Eq)
 
-data Proficiency = Proficiency { proficiencyType :: String, proficiencyName :: String }
+newtype SaveProficiencies = SaveProficiencies [Ability] deriving (Show, Eq)
 
 data ItemInfo = ItemInfo { cost :: String, weight :: String } deriving (Show, Eq)
 
@@ -60,12 +62,12 @@ data Entity =
     wis :: Int,
     hitDice :: String,
     ac :: Int,
-    level :: Int
+    level :: Int,
+    saveProficiencies :: SaveProficiencies
     -- spellSaveDc :: Int,
     -- spellAttackBonus :: Int,
     -- passivePerception :: Int,
     -- proficiencyBonus :: Int,
-    -- proficiencies :: [Proficiency],
     -- spellSlots :: [Int]
   } |
   Object {
@@ -192,6 +194,15 @@ instance IsJson ItemInfo where
     <*> getField "weight" m
   fromValue _ = Nothing
 
+instance IsJson SaveProficiencies where
+  fromValue :: JsonValue -> Maybe SaveProficiencies
+  fromValue (JsonArray a) = SaveProficiencies <$> traverse fromValue a
+  fromValue _ = Nothing
+
+instance ToJson SaveProficiencies where
+  toJson :: SaveProficiencies -> JsonValue
+  toJson (SaveProficiencies xs) = JsonArray $ map toJson xs
+
 instance ToJson Entity where
   toJson :: Entity -> JsonValue
   toJson (Scene info dim) = JsonObject $ M.fromList
@@ -200,7 +211,7 @@ instance ToJson Entity where
       ("entityInfo", toJson info),
       ("dimensions", toJson dim)
     ]
-  toJson (Actor info pos chp mhp cha int con str dex wis hd ac l) = JsonObject $ M.fromList
+  toJson (Actor info pos chp mhp cha int con str dex wis hd ac l spro) = JsonObject $ M.fromList
     [
       ("type", toJson "actor"),
       ("entityInfo", toJson info),
@@ -215,7 +226,8 @@ instance ToJson Entity where
       ("wis", toJson wis),
       ("hitDice", toJson hd),
       ("ac", toJson ac),
-      ("level", toJson l)
+      ("level", toJson l),
+      ("saveProficiencies", toJson spro)
     ]
   toJson (Object info ac mhp chp pos) = JsonObject $ M.fromList
     [
@@ -316,6 +328,7 @@ instance FromJson Entity where
         <*> getField "hitDice" o
         <*> getField "ac" o
         <*> getField "level" o
+        <*> getField "saveProficiencies" o
       "scene" -> Scene
         <$> getField "entityInfo" o
         <*> getField "dimensions" o

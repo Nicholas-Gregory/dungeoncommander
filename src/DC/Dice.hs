@@ -1,5 +1,6 @@
 module DC.Dice (
-  processExpression
+  processExpression,
+  rollDice
   ) where
 
 import DC.Parse ( Parser, char, number, space, runParser )
