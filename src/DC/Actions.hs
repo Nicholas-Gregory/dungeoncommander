@@ -12,6 +12,7 @@ import DC.Entity (Entity(..), SaveProficiencies(..))
 import DC.Types (Ability(..), CheckSuccess)
 import DC.Dice (rollDice)
 import System.Random (StdGen)
+import GHC.Base (undefined)
 
 getAbilityScore :: Entity -> Ability -> Maybe Int
 getAbilityScore (Actor { cha }) Charisma = Just cha
@@ -47,3 +48,6 @@ savingThrow gen entity ability dc = do
   return $ if pro 
     then roll + abilityModifier + proficiencyBonus >= dc
     else roll + abilityModifier >= dc
+
+attackRoll :: StdGen -> Entity -> Ability -> Int -> Maybe CheckSuccess
+attackRoll gen entity ability dc = undefined
