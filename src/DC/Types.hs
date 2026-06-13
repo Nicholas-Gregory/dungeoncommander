@@ -208,17 +208,17 @@ instance ToJson Weapon where
 data WeaponProficiency =
   Simple |
   Martial |
-  Weapon Weapon
+  Specific Weapon
   deriving (Show, Eq)
 
 instance ToJson WeaponProficiency where
   toJson :: WeaponProficiency -> JsonValue
   toJson Simple = toJson "simple"
   toJson Martial = toJson "martial"
-  toJson (Weapon w) = toJson w
+  toJson (Specific w) = toJson w
 
 instance IsJson WeaponProficiency where
   fromValue :: JsonValue -> Maybe WeaponProficiency
   fromValue (JsonString "simple") = Just Simple
   fromValue (JsonString "martial") = Just Martial
-  fromValue v = Weapon <$> fromValue v
+  fromValue v = Specific <$> fromValue v

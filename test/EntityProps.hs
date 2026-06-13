@@ -60,7 +60,7 @@ instance Arbitrary T.Weapon where
   arbitrary = oneof [ T.SimpleMelee <$> arbitrary, T.SimpleRanged <$> arbitrary, T.MartialMelee <$> arbitrary, T.MartialRanged <$> arbitrary ]
 
 instance Arbitrary T.WeaponProficiency where
-  arbitrary = oneof [ return T.Simple, return T.Martial, T.Weapon <$> arbitrary ]
+  arbitrary = oneof [ return T.Simple, return T.Martial, T.Specific <$> arbitrary ]
 
 instance Arbitrary WeaponProficiencies where
   arbitrary = WeaponProficiencies <$> listOf arbitrary
@@ -76,7 +76,7 @@ instance Arbitrary Entity where
       , Trap <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> tupStr <*> tupInt
       , Item <$> arbitrary <*> arbitrary
       , Armor <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-      , Weapon <$> arbitrary <*> arbitrary <*> tupStr <*> listOf arbitrary
+      , Weapon <$> arbitrary <*> arbitrary <*> tupStr <*> listOf arbitrary <*> arbitrary
       , Container <$> arbitrary <*> arbitrary <*> arbitrary
       , Mount <$> arbitrary <*> arbitrary <*> arbitrary
       , Spell <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

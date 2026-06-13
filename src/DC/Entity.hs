@@ -14,7 +14,7 @@ module DC.Entity (
 import DC.Json (FromJson(..), IsJson (fromValue), JsonValue (JsonObject, JsonString, JsonArray), getField, ToJson (toJson))
 import qualified Data.Map as M
 import Data.List (find)
-import DC.Types (Ability (..), WeaponProficiency)
+import DC.Types (Ability (..), WeaponProficiency, Weapon)
 
 data EntityChildType =
   ActorLocation |
@@ -105,7 +105,8 @@ data Entity =
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
     damage :: (String, String),
-    properties :: [String]
+    properties :: [String],
+    weapon :: Weapon
   } |
   Container {
     entityInfo :: EntityInfo,
@@ -278,13 +279,14 @@ instance ToJson Entity where
       ("stealthDisadvantage", toJson sd),
       ("armorType", toJson at)
     ]
-  toJson (Weapon eInfo iInfo d props) = JsonObject $ M.fromList
+  toJson (Weapon eInfo iInfo d props weapon) = JsonObject $ M.fromList
     [
       ("type", toJson "weapon"),
       ("entityInfo", toJson eInfo),
       ("itemInfo", toJson iInfo),
       ("damage", toJson d),
-      ("properties", toJson props)
+      ("properties", toJson props),
+      ("weapon", toJson weapon)
     ]
   toJson (Container eInfo iInfo c) = JsonObject $ M.fromList
     [
@@ -375,6 +377,7 @@ instance FromJson Entity where
         <*> getField "itemInfo" o
         <*> getField "damage" o
         <*> getField "properties" o
+        <*> getField "weapon" o
       "container" -> Container
         <$> getField "entityInfo" o
         <*> getField "itemInfo" o
