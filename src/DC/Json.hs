@@ -206,5 +206,9 @@ instance IsJson (String, String) where
   fromValue (JsonArray [JsonString a, JsonString b]) = Just (a, b)
   fromValue _ = Nothing
 
+instance IsJson JsonValue where
+  fromValue :: JsonValue -> Maybe JsonValue
+  fromValue = Just
+
 getField :: IsJson a => String -> JsonObjectMap -> Maybe a
-getField k o = maybe Nothing fromValue (M.lookup k o)
+getField k o = fromValue =<< M.lookup k o

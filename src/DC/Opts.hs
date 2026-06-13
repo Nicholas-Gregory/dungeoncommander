@@ -9,7 +9,7 @@ module DC.Opts (
 ) where
 
 import DC.Parse (
-  Parser,
+  Parser(..),
   sat,
   char,
   string, space)

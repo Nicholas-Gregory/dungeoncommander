@@ -2,8 +2,7 @@
 {-# LANGUAGE InstanceSigs #-}
 
 module DC.Parse (
-  Parser,
-  runParser,
+  Parser(..),
   item,
   sat,
   char,

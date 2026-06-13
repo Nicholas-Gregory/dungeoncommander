@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Main where
 
 import System.Environment (getArgs)
@@ -9,13 +11,14 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin, hIsTerminalDevice)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson))
+import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson), getField)
 import System.Random (getStdGen)
 import Text.Read (readMaybe)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
 import Debug.Trace (trace)
 import DC.Entity(Entity) 
+import Data.Map (mapMaybe)
 
 
 
@@ -28,13 +31,43 @@ main = withSocketsDo $ do
   input <- if isTerm
     then do
       connect sock (SockAddrUnix "/tmp/dc.sock")
-      sendAll sock $ C.pack "{ \"action\": \"GET\" }"
+      sendAll sock $ C.pack "{ \"action\": \"get\" \"payload\": \"all\"}"
       r <- recv sock 4096
       return (C.unpack r)
     else getContents
-
-  let state = JsonObject . fst <$> runParser jsonObject input
   let opts = map fst <$> mapM (runParser cliArg) args
-  
+
+  case runParser jsonObject input of
+    Nothing -> putStrLn "client recieved invalid JSON from server daemon"
+    Just (json, _) -> do
+      case getField "currentScene" json :: Maybe String of
+        Nothing -> do
+          case M.lookup "entities" json of
+            Nothing -> putStrLn "client recieved JSON without top-level \"entities\" entry"
+            Just (JsonObject entityMap) -> do
+              let scenes = M.filter (\case 
+                    (JsonObject o) -> maybe False (== "scene") (getField "type" o)
+                    _ -> False) entityMap
+
+              putStrLn "No current active scene. Use \"dc scene\" passing the name or ID of the scene you want to be in."
+              putStrLn "Currently saved scenes:"
+
+              -- extractName :: JsonValue -> Maybe String
+              let extractName (JsonObject o) = do
+                    infoVal <- M.lookup "entityInfo" o
+                    case infoVal of
+                      JsonObject infoMap -> do
+                        nameVal <- M.lookup "name" infoMap
+                        case nameVal of
+                          JsonString s -> Just s
+                          _ -> Nothing
+                      _ -> Nothing
+                  extractName _ = Nothing
+
+              -- collect (id, name) pairs and print them
+              let namedList = [(k, n) | (k, v) <- M.toList scenes, Just n <- [extractName v]]
+              mapM_ (\(k, n) -> putStrLn $ "ID: " ++ k ++ ", Name: " ++ n) namedList
+
+
 
 

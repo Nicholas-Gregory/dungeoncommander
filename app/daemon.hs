@@ -7,25 +7,27 @@ import qualified Data.ByteString.Char8 as C
 import System.IO (readFile)
 import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
-import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject)
+import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject, getField)
 import DC.Parse (Parser(runParser))
 import System.Directory (doesFileExist)
 
-createEmptyDb :: IO ()
-createEmptyDb = writeFile "db.json" "{\"entities\":[]}"
-
-
-get :: Socket -> IO ()
-get conn = do
-  dbExists <- doesFileExist "db.json"
+performAction :: Socket -> String -> JsonValue -> IO ()
+performAction conn "get" (JsonString "all") = do
   contents <- C.readFile "db.json"
-  -- Protocol unimplemented
   sendAll conn contents
+
+performAction _ _ _ = putStrLn "unrecognized action"
 
 handleClient :: Socket -> IO ()
 handleClient conn = do
-  msg <- recv conn 4096
-  get conn
+  msg <- recv conn 1024
+
+  case runParser jsonObject (C.unpack msg) of
+    Just (r, "") -> case performAction conn <$> getField "action" r <*> getField "payload" r of
+      Just result -> result
+      Nothing -> putStrLn "malformed request"
+    Just (_, s) -> putStrLn $ "server daemon did not parse entire message. leftover: " <> s
+    Nothing -> putStrLn "server daemon encountered parsing error"
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -33,7 +35,6 @@ main = withSocketsDo $ do
 
   bind sock (SockAddrUnix "/tmp/dc.sock")
   listen sock 1
-
   
   forever $ do
     (conn, _) <- accept sock
