@@ -1,16 +1,25 @@
 module DC.Game (
- GameState(..),
- GameAction
+  GameState(..),
+  Env(..),
+  AppM
 ) where
 
 import DC.Entity (Entity)
 import System.Random (StdGen)
-import Control.Monad.State (StateT)
 import Control.Monad.Except (ExceptT)
+import Control.Monad.Reader (ReaderT)
+import Data.IORef (IORef)
 
-data GameState = GameState
+data GameState = GameState 
   { scene :: Entity
   , gen :: StdGen
+  , commits :: [Entity]
   }
 
-type GameAction a = ExceptT String (StateT GameState IO) a
+data Env = Env
+  { socketPath :: FilePath
+  , dbPath :: FilePath
+  , state :: IORef GameState
+  }
+
+type AppM a = ExceptT String (ReaderT Env IO) a

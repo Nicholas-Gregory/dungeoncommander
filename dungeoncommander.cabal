@@ -122,7 +122,9 @@ executable dc
         network, 
         bytestring, 
         random,
-        containers
+        containers,
+        mtl,
+        transformers
     default-language: Haskell2010
 
 test-suite dungeoncommander-test
