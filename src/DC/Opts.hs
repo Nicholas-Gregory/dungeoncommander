@@ -25,7 +25,7 @@ data Option =
   deriving (Show)
 
 alphaNumLower :: Parser Char
-alphaNumLower = sat (liftA2 (||) isAlphaNum isLower)
+alphaNumLower = sat "Expected alphanumeric" (liftA2 (||) isAlphaNum isLower)
 
 flag :: Parser String
 flag = do

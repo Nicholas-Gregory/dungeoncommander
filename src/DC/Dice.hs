@@ -26,10 +26,9 @@ expression = (,) <$> dice <*> optional modifier
 rollDice :: StdGen -> Int -> Int -> Int
 rollDice gen n t = sum $ take n $ randomRs (1, t) gen
 
-processExpression :: StdGen -> String -> Maybe Int
-processExpression gen expr = do
-  (((n, t), m), _) <- runParser expression expr
-
-  return $ case m of
-    Nothing -> rollDice gen n t
-    Just m' -> m' + rollDice gen n t
+processExpression :: StdGen -> String -> Either String Int
+processExpression gen expr = case runParser expression expr of
+    Right (((n, t), m), _) -> case m of
+      Nothing -> Right $ rollDice gen n t
+      Just m' -> Right $ m' + rollDice gen n t
+    Left e -> Left e

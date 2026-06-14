@@ -76,7 +76,7 @@ jsonEscape = (\_ c -> '\\' : [c]) <$> char '\\' <*> item
 jsonString :: Parser String
 jsonString = (\_ s _ -> s) 
   <$> char '"' 
-  <*> (concat <$> many (jsonEscape <|> some (sat (liftA2 (&&) (/='"') (/='\\')))))
+  <*> (concat <$> many (jsonEscape <|> some (sat "Unexpected end of string/escape character" (liftA2 (&&) (/='"') (/='\\')))))
   <*> char '"'
 
 jsonBool :: Parser Bool
