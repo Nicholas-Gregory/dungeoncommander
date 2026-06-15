@@ -36,6 +36,10 @@ flag = do
 switch :: Parser Char
 switch = char '-' *> alphaNumLower
 
+opt :: Parser Option
+opt = (Flag <$> flag)
+  <|> (Switch <$> switch)
+
 arg :: Parser String
 arg = some alphaNumLower
 

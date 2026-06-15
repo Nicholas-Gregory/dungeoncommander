@@ -9,9 +9,11 @@ import System.Random (StdGen)
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Reader (ReaderT)
 import Data.IORef (IORef)
+import Data.Map (Map)
 
 data GameState = GameState 
-  { scene :: Entity
+  { currentScene :: String,
+    entities :: Map String Entity
   , gen :: StdGen
   , commits :: [Entity]
   }

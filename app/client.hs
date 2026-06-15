@@ -11,7 +11,7 @@ import Control.Applicative (optional)
 import System.IO (hReady, stdin, hIsTerminalDevice, hPutStrLn, stderr)
 import Control.Monad (join)
 import DC.Parse (Parser(runParser))
-import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson), getField, JsonObjectMap)
+import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson), getField, JsonObjectMap, ToJson (toJson))
 import System.Random (getStdGen, mkStdGen)
 import Text.Read (readMaybe)
 import DC.Dice (processExpression)
@@ -25,7 +25,7 @@ import Control.Monad.Trans.Reader
 import Data.IORef
 
 processCommand :: Socket -> [Option] -> AppM ()
-processCommand sock opts = undefined
+processCommand sock [Arg "create"] = undefined
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -64,7 +64,7 @@ main = withSocketsDo $ do
                 putStrLn "No current active scene. Use \"dc scene\" passing the name or ID of the scene you want to be in."
                 putStrLn "Currently saved scenes:"
 
-          --       -- extractName :: JsonValue -> Maybe String
+                -- extractName :: JsonValue -> Maybe String
                 let extractName (JsonObject o) = do
                       infoVal <- M.lookup "entityInfo" o
                       case infoVal of
@@ -76,30 +76,47 @@ main = withSocketsDo $ do
                         _ -> Nothing
                     extractName _ = Nothing
 
-          --       -- collect (id, name) pairs and print them
+                -- collect (id, name) pairs and print them
                 let namedList = [(k, n) | (k, v) <- M.toList scenes, Just n <- [extractName v]]
                 mapM_ (\(k, n) -> putStrLn $ "ID: " ++ k ++ ", Name: " ++ n) namedList
             Just sceneIdentifier -> do
               case M.lookup "entities" json of
                 Nothing -> hPutStrLn stderr "client recieved JSON without top-level \"entities\" entry"
-                Just (JsonObject entities) -> do
-                  case (fromJson =<< M.lookup sceneIdentifier entities) :: Maybe Entity of
+                Just (JsonObject prevEntities) -> do
+                  case (fromJson =<< M.lookup sceneIdentifier prevEntities) :: Maybe Entity of
                     Nothing -> hPutStrLn stderr "Current scene not found in entities list"
                     Just currentScene -> do
                       connect sock (SockAddrUnix "/tmp/dc.sock")
                       case opts of
                         Left e -> putStrLn $ "Client CLI parsing error: " <> e
                         Right o -> do
-                          let gen = mkStdGen 100
-                          let gameState = GameState {commits=[], scene=currentScene, gen=gen}
-                          stateRef <- newIORef gameState
-                          let env = Env { socketPath="/tmp/dc.sock", dbPath="db.json", state=stateRef}
+                          case traverse (\o -> fromJson o :: Maybe Entity) prevEntities of
+                            Nothing -> hPutStrLn stderr "Error processing input JSON"
+                            Just entityMap -> do
+                              let gen = mkStdGen 100
+                              let gameState = GameState {
+                                commits=[], 
+                                currentScene=sceneIdentifier, 
+                                gen=gen,
+                                entities=entityMap
+                              }
+                              stateRef <- newIORef gameState
+                              let env = Env { socketPath="/tmp/dc.sock", dbPath="db.json", state=stateRef}
 
-                          result <- runReaderT (runExceptT $ processCommand sock o) env
+                              result <- runReaderT (runExceptT $ processCommand sock o) env
 
-                          case result of
-                            Left e -> hPutStrLn stderr $ "Game logic error: " <> e
-                            Right () -> undefined --TODO: Handle JSON ouput, stderr user output, and sending result to daemon
+                              case result of
+                                Left e -> hPutStrLn stderr $ "Game logic error: " <> e
+                                Right () -> do
+                                  finalState <- readIORef (state env)
+                                  let entitiesJsonResult = M.map toJson $ entities finalState
+                                  let finalJson = M.fromList [ ("currentScene", toJson currentScene)
+                                                             , ("entities", JsonObject entitiesJsonResult) 
+                                                             ]
+                                  let serializedJson = writeJsonValue $ JsonObject finalJson
+                                  
+                                  putStrLn serializedJson
+                                  
 
 
 

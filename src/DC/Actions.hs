@@ -8,14 +8,22 @@ module DC.Actions (
   getProficiencyBonus,
   savingThrow,
   hasWeaponProficiency,
-  attackRoll
+  attackRoll,
+  saveEntity,
+  addChild,
+  removeChild
 ) where
-import DC.Entity (Entity(..), SaveProficiencies(..), WeaponProficiencies (WeaponProficiencies), EntityInfo (children))
+import DC.Entity (Entity(..), SaveProficiencies(..), WeaponProficiencies (WeaponProficiencies), EntityInfo (children), EntityChildType, EntityChild (..), EntityChildren (EntityChildren))
 import qualified DC.Types as T (Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
 import DC.Dice (rollDice)
 import System.Random (StdGen)
 import GHC.Base (undefined)
 import DC.Types (WeaponProficiency(Specific))
+import DC.Game (AppM, Env (state), GameState (..))
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Data.IORef (atomicModifyIORef')
+import Control.Monad.Reader (asks)
+import qualified Data.Map as M
 
 getAbilityScore :: Entity -> T.Ability -> Maybe Int
 getAbilityScore (Actor { cha }) T.Charisma = Just cha
@@ -75,3 +83,41 @@ attackRoll gen (Weapon { weapon }) entity ability dc = do
     else roll + abilityModifier >= dc
 attackRoll _ _ _ _ _ = Nothing
   
+saveEntity :: String -> Entity -> AppM ()
+saveEntity k e = do
+  stateRef <- asks state
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    let newEntities = M.insert k e (entities st)
+    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
+
+addChild :: EntityChildType -> String -> String -> AppM ()
+addChild t p c = do
+  stateRef <- asks state
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    let newEntities = M.adjust
+          (\parent ->
+             let oldInfo = entityInfo parent
+                 oldChildren = children oldInfo
+                 newChildren = case oldChildren of
+                   EntityChildren xs -> EntityChildren (EntityChild { childType = t, childId = c } : xs)
+             in parent { entityInfo = oldInfo { children = newChildren } }
+          ) p (entities st)
+    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
+
+removeChild :: EntityChildType -> String -> String -> AppM ()
+removeChild t p c = do
+  stateRef <- asks state
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    let newEntities = M.adjust
+          (\parent ->
+            let oldInfo = entityInfo parent
+                oldChildren = children oldInfo
+                newChildren = case oldChildren of
+                  EntityChildren xs -> EntityChildren (filter (\child -> childType child /= t && childId child /= c) xs) 
+            in parent { entityInfo = oldInfo { children = newChildren } }
+          ) p (entities st)
+    in (st { entities = newEntities }, ())
+
