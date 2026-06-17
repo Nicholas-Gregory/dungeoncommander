@@ -5,6 +5,8 @@ module DC.Opts (
   optArg,
   command,
   cliArg,
+  numList,
+  numListArg,
   Option(..)
 ) where
 
@@ -12,16 +14,17 @@ import DC.Parse (
   Parser(..),
   sat,
   char,
-  string, space)
+  string, space, number)
 import Control.Applicative (Alternative((<|>), some, many))
-import Data.Char (isLower, isAlphaNum)
+import Data.Char (isLower, isAlphaNum, isNumber)
 
 data Option = 
   Switch Char |
   Flag String |
   Arg String |
   OptArg (String, String) |
-  SubCommand String
+  SubCommand String |
+  NumList (String, [Int])
   deriving (Show)
 
 alphaNumLower :: Parser Char
@@ -36,20 +39,27 @@ flag = do
 switch :: Parser Char
 switch = char '-' *> alphaNumLower
 
-opt :: Parser Option
-opt = (Flag <$> flag)
-  <|> (Switch <$> switch)
+numList :: Parser [Int]
+numList = some $ number <* char ',' <* space
 
 arg :: Parser String
 arg = some alphaNumLower
 
-optArg :: Parser (String, String)
+optArg :: Parser Option
 optArg = do
   o <- (: []) <$> switch <|> flag
   _ <- space
   a <- arg
 
-  return (o, a)
+  return $ OptArg (o, a)
+
+numListArg :: Parser Option
+numListArg = do
+  o <- (: []) <$> switch <|> flag
+  _ <- char '='
+  l <- numList
+
+  return $ NumList (o, l)
 
 command :: Parser String
 command = some $ alphaNumLower <|> char '-'

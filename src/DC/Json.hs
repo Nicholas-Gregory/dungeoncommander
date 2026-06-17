@@ -142,7 +142,7 @@ isJsonArray v = case v of
 
 
 class FromJson a where
-  fromJson :: JsonValue -> Maybe a
+  fromJson :: JsonValue -> Either String a
 
 class ToJson a where
   toJson :: a -> JsonValue
@@ -172,43 +172,48 @@ instance ToJson (String, String) where
   toJson (a, b) = JsonArray [JsonString a, JsonString b]
 
 class IsJson a where
-  fromValue :: JsonValue -> Maybe a
+  fromValue :: JsonValue -> Either String a
 
 instance IsJson String where
-  fromValue :: JsonValue -> Maybe String
-  fromValue (JsonString s) = Just s
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either String String
+  fromValue (JsonString s) = Right s
+  fromValue _ = Left "Expected JSON String"
 
 instance IsJson Int where
-  fromValue :: JsonValue -> Maybe Int
-  fromValue (JsonNumber n) = Just n
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either String Int
+  fromValue (JsonNumber n) = Right n
+  fromValue _ = Left "Expected JSON Number"
 
 instance IsJson Bool where
-  fromValue :: JsonValue -> Maybe Bool
-  fromValue (JsonBool b) = Just b
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either String Bool
+  fromValue (JsonBool b) = Right b
+  fromValue _ = Left "Expected JSON Bool"
 
 instance IsJson [String] where
-  fromValue :: JsonValue -> Maybe [String]
+  fromValue :: JsonValue -> Either String [String]
   fromValue (JsonArray a) = mapM (\case
-    (JsonString s) -> Just s
-    _ -> Nothing) a
-  fromValue _ = Nothing
+    (JsonString s) -> Right s
+    _ -> Left "Expected JSON Array of JSON Strings") a
+  fromValue _ = Left "Expected JSON Array"
 
 instance IsJson (Int, Int) where
-  fromValue :: JsonValue -> Maybe (Int, Int)
-  fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Just (a, b)
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either String (Int, Int)
+  fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Right (a, b)
+  fromValue _ = Left "Expected JSON Array of two JSON Numbers"
 
 instance IsJson (String, String) where
-  fromValue :: JsonValue -> Maybe (String, String)
-  fromValue (JsonArray [JsonString a, JsonString b]) = Just (a, b)
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either String (String, String)
+  fromValue (JsonArray [JsonString a, JsonString b]) = Right (a, b)
+  fromValue _ = Left "Expected JSON Array of two JSON Strings"
 
 instance IsJson JsonValue where
-  fromValue :: JsonValue -> Maybe JsonValue
-  fromValue = Just
+  fromValue :: JsonValue -> Either String JsonValue
+  fromValue = Right
 
-getField :: IsJson a => String -> JsonObjectMap -> Maybe a
-getField k o = fromValue =<< M.lookup k o
+getField :: IsJson a => String -> JsonObjectMap -> Either String a
+-- getField k o = fromValue =<< M.lookup k o
+getField k o = case M.lookup k o of
+  Just v -> case fromValue v of
+    Right a -> Right a
+    Left e -> Left e
+  Nothing -> Left $ "JSON error: Key '" <> k <> "' does not exist in object"

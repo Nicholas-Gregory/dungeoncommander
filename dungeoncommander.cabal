@@ -65,10 +65,8 @@ library
         DC.Json
         DC.Actions
         DC.Parse
-        DC.Entity
         DC.Types
-        DC.Game
-
+        DC.Error
     -- Modules included in this library but not exported.
     
 

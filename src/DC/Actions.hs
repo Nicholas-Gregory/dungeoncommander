@@ -11,19 +11,18 @@ module DC.Actions (
   attackRoll,
   saveEntity,
   addChild,
-  removeChild
+  removeChild,
+  tooFewArgumentsError
 ) where
-import DC.Entity (Entity(..), SaveProficiencies(..), WeaponProficiencies (WeaponProficiencies), EntityInfo (children), EntityChildType, EntityChild (..), EntityChildren (EntityChildren))
+import DC.Types
 import qualified DC.Types as T (Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
 import DC.Dice (rollDice)
 import System.Random (StdGen)
-import GHC.Base (undefined)
-import DC.Types (WeaponProficiency(Specific))
-import DC.Game (AppM, Env (state), GameState (..))
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef')
 import Control.Monad.Reader (asks)
 import qualified Data.Map as M
+import System.IO (hPutStrLn, stderr)
 
 getAbilityScore :: Entity -> T.Ability -> Maybe Int
 getAbilityScore (Actor { cha }) T.Charisma = Just cha
@@ -121,3 +120,5 @@ removeChild t p c = do
           ) p (entities st)
     in (st { entities = newEntities }, ())
 
+tooFewArgumentsError :: AppM ()
+tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few argumenst"

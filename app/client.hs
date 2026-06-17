@@ -23,9 +23,25 @@ import DC.Game (AppM, GameState (..), Env (..))
 import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
+import Control.Monad.Trans (MonadIO(liftIO))
+import DC.Actions (tooFewArgumentsError)
+import Data.Traversable (traverse)
 
 processCommand :: Socket -> [Option] -> AppM ()
-processCommand sock [Arg "create"] = undefined
+processCommand _ [Arg "create", Arg "scene"] = tooFewArgumentsError
+processCommand _ (Arg "create":Arg "scene":[_]) = tooFewArgumentsError
+processCommand _ (Arg "create":Arg "scene":[_, _]) = tooFewArgumentsError
+processCommand sock (Arg "create":Arg "scene":xs@[_, _, _]) = do
+  let names = [n | OptArg ("name", n) <- xs]
+  let ids = [i | OptArg ("id", i) <- xs]
+  let dims = [d | NumList ("dim", d) <- xs]
+
+  case (names, ids, dims) of
+    ([name], [id], [dimensions]) -> do 
+      liftIO $ putStrLn $ name <> id
+      liftIO $ print dimensions
+    _ -> liftIO $ hPutStrLn stderr "To create a scene, provide a --name, --id, and --dim=x,y"
+  
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -44,7 +60,7 @@ main = withSocketsDo $ do
 
 
   case runParser jsonObject input of
-    Left e -> putStrLn $ "client recieved invalid JSON from server daemon: " <> e
+    Left e -> hPutStrLn stderr $ "client recieved invalid JSON from server daemon: " <> e
     Right (json, _) -> do
       case opts of
         Right [Arg "scene", Arg sceneIdentifier] -> do
@@ -52,17 +68,19 @@ main = withSocketsDo $ do
 
           sendAll sock $ C.pack $ "{ \"action\": \"setScene\", \"payload\": \"" <> sceneIdentifier <> "\" }"
         _ -> do
-          case getField "currentScene" json :: Maybe String of
-            Nothing -> case M.lookup "entities" json of
-              Nothing -> putStrLn "client recieved JSON without top-level \"entities\" entry"
+          case getField "currentScene" json :: Either String String of
+            Left _ -> case M.lookup "entities" json of
+              Nothing -> hPutStrLn stderr "client recieved JSON without top-level \"entities\" entry"
               Just (JsonObject entityMap) -> do
-                putStrLn "hi"
                 let scenes = M.filter (\case
-                     (JsonObject o) -> maybe False (== "scene") (getField "type" o)
+                     (JsonObject o) -> case getField "type" o of
+                        Right "scene" -> True
+                        Right _ -> False
+                        Left _ -> False
                      _ -> False) entityMap
 
-                putStrLn "No current active scene. Use \"dc scene\" passing the name or ID of the scene you want to be in."
-                putStrLn "Currently saved scenes:"
+                hPutStrLn stderr "No current active scene. Use \"dc scene\" passing the name or ID of the scene you want to be in."
+                hPutStrLn stderr "Currently saved scenes:"
 
                 -- extractName :: JsonValue -> Maybe String
                 let extractName (JsonObject o) = do
@@ -78,20 +96,28 @@ main = withSocketsDo $ do
 
                 -- collect (id, name) pairs and print them
                 let namedList = [(k, n) | (k, v) <- M.toList scenes, Just n <- [extractName v]]
-                mapM_ (\(k, n) -> putStrLn $ "ID: " ++ k ++ ", Name: " ++ n) namedList
-            Just sceneIdentifier -> do
+                mapM_ (\(k, n) -> hPutStrLn stderr $ "ID: " ++ k ++ ", Name: " ++ n) namedList
+            Right sceneIdentifier -> do
               case M.lookup "entities" json of
                 Nothing -> hPutStrLn stderr "client recieved JSON without top-level \"entities\" entry"
                 Just (JsonObject prevEntities) -> do
                   case (fromJson =<< M.lookup sceneIdentifier prevEntities) :: Maybe Entity of
                     Nothing -> hPutStrLn stderr "Current scene not found in entities list"
                     Just currentScene -> do
-                      connect sock (SockAddrUnix "/tmp/dc.sock")
+                      -- connect sock (SockAddrUnix "/tmp/dc.sock")
                       case opts of
-                        Left e -> putStrLn $ "Client CLI parsing error: " <> e
+                        Left e -> hPutStrLn stderr $ "Client CLI parsing error: " <> e
                         Right o -> do
-                          case traverse (\o -> fromJson o :: Maybe Entity) prevEntities of
-                            Nothing -> hPutStrLn stderr "Error processing input JSON"
+                          case traverse (\val ->
+                                 case val of
+                                   JsonObject objMap ->
+                                     let objWithoutCurrent = JsonObject (M.filterWithKey (\k _ -> k /= "currentScene") objMap)
+                                     in (fromJson objWithoutCurrent :: Maybe Entity)
+                                   _ -> Nothing
+                               ) prevEntities of
+                            Nothing -> do
+                              print prevEntities
+                              hPutStrLn stderr "Error processing input JSON"
                             Just entityMap -> do
                               let gen = mkStdGen 100
                               let gameState = GameState {
@@ -116,7 +142,7 @@ main = withSocketsDo $ do
                                   let serializedJson = writeJsonValue $ JsonObject finalJson
                                   
                                   putStrLn serializedJson
-                                  
+
 
 
 

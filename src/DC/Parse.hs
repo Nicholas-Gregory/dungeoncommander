@@ -14,8 +14,9 @@ module DC.Parse (
   ) where
 import Control.Applicative (Alternative(empty, (<|>), some), optional)
 import Data.Char (isDigit, isSpace)
+import DC.Error ( AppError(..), newBaseError, ErrorDetail (ParseError), ErrorContextFrame(..), annotateErrorPure )
 
-newtype Parser a = Parser { runParser :: String -> Either String (a, String) }
+newtype Parser a = Parser { runParser :: String -> Either AppError (a, String) }
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
@@ -35,13 +36,16 @@ instance Applicative Parser where
 
 instance Alternative Parser where
   empty :: Parser a
-  empty = Parser $ const $ Left "Parse error: empty parser"
+  empty = Parser $ const $ Left $ newBaseError $ ParseError "Empty parser"
   (<|>) :: Parser a -> Parser a -> Parser a
-  (Parser a) <|> (Parser b) = Parser $ \input -> case a input of
+  (Parser a) <|> (Parser b) = Parser $ \input -> annotateErrorPure (ErrorContextFrame 
+    { errorAction = "parserBranch"
+    , errorData = [("input", input)] 
+    }) $ case a input of
     Right result -> Right result
-    Left e1 -> case b input of
+    Left _ -> case b input of
       Right r -> Right r
-      Left e2 -> Left (e1 <> ", " <> e2)
+      Left e2 -> Left e2
 
 instance Monad Parser where
   (>>=) :: Parser a -> (a -> Parser b) -> Parser b
@@ -51,25 +55,25 @@ instance Monad Parser where
 
 instance MonadFail Parser where 
   fail :: String -> Parser a
-  fail s = Parser $ \_ -> Left s
+  fail s = Parser $ \_ -> Left $ newBaseError $ ParseError s
 
 item :: Parser Char
 item = Parser $ \case
-  "" -> Left "Cannot parse empty input"
+  "" -> Left $ newBaseError $ ParseError "Cannot parse empty input"
   (x:xs) -> Right (x, xs)
 
 sat :: String -> (Char -> Bool) -> Parser Char
 sat errMsg p = Parser $ \case
-  "" -> Left "Unexpected end of input"
+  "" -> Left $ newBaseError $ ParseError "Unexpected end of input"
   (x:xs) -> if p x
             then Right (x, xs)
-            else Left (errMsg <> " (found '" <> [x] <> "')")
+            else Left $ newBaseError $ ParseError (errMsg <> " (found '" <> [x] <> "')")
 
 char :: Char -> Parser Char
 char c = sat ("Expected '" <> [c] <> "'") (== c)
 
 digit :: Parser Char
-digit = sat "Expected a digit"isDigit
+digit = sat "Expected a digit" isDigit
 
 string :: String -> Parser String
 string "" = empty
