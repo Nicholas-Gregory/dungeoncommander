@@ -38,14 +38,14 @@ instance Alternative Parser where
   empty :: Parser a
   empty = Parser $ const $ Left $ newBaseError $ ParseError "Empty parser"
   (<|>) :: Parser a -> Parser a -> Parser a
-  (Parser a) <|> (Parser b) = Parser $ \input -> annotateErrorPure (ErrorContextFrame 
-    { errorAction = "parserBranch"
-    , errorData = [("input", input)] 
-    }) $ case a input of
+  (Parser a) <|> (Parser b) = Parser $ \input -> case a input of
     Right result -> Right result
     Left _ -> case b input of
       Right r -> Right r
-      Left e2 -> Left e2
+      Left e2 -> annotateErrorPure (ErrorContextFrame 
+        { errorAction = "parserBranch"
+        , errorData = [("input", input)] 
+        }) (Left e2)
 
 instance Monad Parser where
   (>>=) :: Parser a -> (a -> Parser b) -> Parser b

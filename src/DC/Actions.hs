@@ -12,43 +12,75 @@ module DC.Actions (
   saveEntity,
   addChild,
   removeChild,
-  tooFewArgumentsError
+  tooFewArgumentsError,
+  parseCliArgs,
+  getJsonFromDaemon,
+  getJsonFromInput
 ) where
 import DC.Types
-import qualified DC.Types as T (Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
+import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
 import DC.Dice (rollDice)
 import System.Random (StdGen)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef')
-import Control.Monad.Reader (asks)
+import Control.Monad.Reader (asks, MonadTrans (lift))
 import qualified Data.Map as M
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStrLn, stderr, getContents')
+import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError)
+import DC.Opts (Option, cliArg)
+import System.Environment (getArgs)
+import DC.Parse (Parser(runParser))
+import Control.Applicative (Alternative(empty))
+import Control.Monad.Except (MonadError(throwError))
+import Network.Socket
+import Network.Socket.ByteString (sendAll, recv)
+import qualified Data.ByteString.Char8 as C
+import DC.Json (JsonValue (JsonObject), jsonObject)
+import System.Timeout (timeout)
 
-getAbilityScore :: Entity -> T.Ability -> Maybe Int
-getAbilityScore (Actor { cha }) T.Charisma = Just cha
-getAbilityScore (Actor { int }) T.Intelligence = Just int
-getAbilityScore (Actor { con }) T.Constitution = Just con
-getAbilityScore (Actor { str }) T.Strength = Just str
-getAbilityScore (Actor { dex }) T.Dexterity = Just dex
-getAbilityScore (Actor { wis }) T.Wisdom = Just wis
-getAbilityScore _ _ = Nothing
+getAbilityScore :: Entity -> Ability -> Either AppError Int
+getAbilityScore (Actor { cha }) Charisma = Right cha
+getAbilityScore (Actor { int }) Intelligence = Right int
+getAbilityScore (Actor { con }) Constitution = Right con
+getAbilityScore (Actor { str }) Strength = Right str
+getAbilityScore (Actor { dex }) Dexterity = Right dex
+getAbilityScore (Actor { wis }) Wisdom = Right wis
+getAbilityScore e a = Left
+  $ newBaseError
+  $ OtherError 
+  $ "Unknown Ability type or not an Actor for getAbilityScore. Ability type: "
+  <> show a
+  <> "Entity: "
+  <> show e
 
-getAbilityModifier :: Entity -> T.Ability -> Maybe Int
+getAbilityModifier :: Entity -> Ability -> Either AppError Int
 getAbilityModifier e a = (\s -> (s - 10) `div` 2) <$> getAbilityScore e a
 
-abilityCheck :: StdGen -> Entity -> T.Ability -> Int -> Maybe T.CheckSuccess
+abilityCheck :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
 abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc) 
   <$> getAbilityModifier entity ability
 
-hasSaveProficiency :: Entity -> T.Ability -> Maybe Bool
-hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Just $ ability `elem` xs
-hasSaveProficiency _ _ = Nothing
+hasSaveProficiency :: Entity -> Ability -> Either AppError Bool
+hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Right 
+  $ ability `elem` xs
+hasSaveProficiency e a = Left
+  $ newBaseError
+  $ OtherError 
+  $ "Unknown Ability type or not an Actor for hasSaveProficiency. Ability type: "
+  <> show a
+  <> "Entity: "
+  <> show e
 
-getProficiencyBonus :: Entity -> Maybe Int
-getProficiencyBonus (Actor { level }) = Just $ ((level - 1) `div` 4) + 2
-getProficiencyBonus _ = Nothing
+getProficiencyBonus :: Entity -> Either AppError Int
+getProficiencyBonus (Actor { level }) = Right $ ((level - 1) `div` 4) + 2
+getProficiencyBonus x = Left
+  $ newBaseError
+  $ OtherError 
+  $ "Expected an Actor for getProficiencyBonus, found: "
+  <> show x
 
-savingThrow :: StdGen -> Entity -> T.Ability -> Int -> Maybe T.CheckSuccess
+
+savingThrow :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
 savingThrow gen entity ability dc = do
   pro <- hasSaveProficiency entity ability
   abilityModifier <- getAbilityModifier entity ability
@@ -59,19 +91,26 @@ savingThrow gen entity ability dc = do
     then roll + abilityModifier + proficiencyBonus >= dc
     else roll + abilityModifier >= dc
 
-hasWeaponProficiency :: Entity -> T.WeaponProficiency -> Maybe Bool
-hasWeaponProficiency (Actor { weaponProficiencies = WeaponProficiencies xs }) proficiency = Just $ proficiency `elem` xs
-hasWeaponProficiency _ _ = Nothing
+hasWeaponProficiency :: Entity -> WeaponProficiency -> Either AppError Bool
+hasWeaponProficiency (Actor { weaponProficiencies = WeaponProficiencies xs }) proficiency = Right 
+  $ proficiency `elem` xs
+hasWeaponProficiency e x = Left
+  $ newBaseError
+  $ OtherError
+  $ "Expected Actor and WeaponProficiency for hasWeaponProficiency. Entity: "
+  <> show e
+  <> "Object: "
+  <> show x
 
-attackRoll :: StdGen -> Entity -> Entity -> T.Ability -> Int -> Maybe T.CheckSuccess
+attackRoll :: StdGen -> Entity -> Entity -> Ability -> Int -> Either AppError CheckSuccess
 attackRoll gen (Weapon { weapon }) entity ability dc = do
   abilityModifier <- getAbilityModifier entity ability
   proficiencyBonus <- getProficiencyBonus entity
   hasProficiency <- (case weapon of
-        T.SimpleMelee w -> liftA2 (||) (hasWeaponProficiency entity T.Simple) (hasWeaponProficiency entity (T.Specific $ T.SimpleMelee w))
-        T.SimpleRanged w -> liftA2 (||) (hasWeaponProficiency entity T.Simple) (hasWeaponProficiency entity (T.Specific $ T.SimpleRanged w))
-        T.MartialMelee w -> liftA2 (||) (hasWeaponProficiency entity T.Martial) (hasWeaponProficiency entity (T.Specific $ T.MartialMelee w))
-        T.MartialRanged w -> liftA2 (||) (hasWeaponProficiency entity T.Martial) (hasWeaponProficiency entity (T.Specific $ T.MartialRanged w)))
+        SimpleMelee w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleMelee w))
+        SimpleRanged w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleRanged w))
+        MartialMelee w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialMelee w))
+        MartialRanged w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialRanged w)))
   let roll = rollDice gen 1 20
   
   return $ case roll of
@@ -80,9 +119,13 @@ attackRoll gen (Weapon { weapon }) entity ability dc = do
     _ -> if hasProficiency
     then roll + abilityModifier + proficiencyBonus >= dc
     else roll + abilityModifier >= dc
-attackRoll _ _ _ _ _ = Nothing
+attackRoll _ e _ _ _ = Left
+  $ newBaseError
+  $ OtherError
+  $ "Expected Weapon for attackRoll, found: "
+  <> show e
   
-saveEntity :: String -> Entity -> AppM ()
+saveEntity :: String -> Entity -> GameM ()
 saveEntity k e = do
   stateRef <- asks state
 
@@ -90,7 +133,7 @@ saveEntity k e = do
     let newEntities = M.insert k e (entities st)
     in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
 
-addChild :: EntityChildType -> String -> String -> AppM ()
+addChild :: EntityChildType -> String -> String -> GameM ()
 addChild t p c = do
   stateRef <- asks state
 
@@ -105,7 +148,7 @@ addChild t p c = do
           ) p (entities st)
     in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
 
-removeChild :: EntityChildType -> String -> String -> AppM ()
+removeChild :: EntityChildType -> String -> String -> GameM ()
 removeChild t p c = do
   stateRef <- asks state
 
@@ -120,5 +163,45 @@ removeChild t p c = do
           ) p (entities st)
     in (st { entities = newEntities }, ())
 
-tooFewArgumentsError :: AppM ()
-tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few argumenst"
+tooFewArgumentsError :: GameM ()
+tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few arguments"
+
+parseCliArgs :: GameM [Option]
+parseCliArgs = do
+  args <- liftIO getArgs
+  let result = map fst <$> traverse (runParser cliArg) args
+
+  case result of
+    Left err -> throwError err
+    Right opts -> return opts
+
+getJsonFromDaemon :: Socket -> GameM JsonValue
+getJsonFromDaemon sock = do
+  liftIO $ sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
+  r <- liftIO $ timeout 3000000 $ recv sock 4096
+
+  case r of
+    Nothing -> lift $ throwBaseError $ SocketError "Socket timed out"
+    Just d -> case runParser jsonObject (C.unpack d) of
+      Left e -> throwError e
+      Right o -> return $ JsonObject $ fst o
+
+getJsonFromInput :: GameM JsonValue
+getJsonFromInput = do
+  input <- liftIO getContents
+
+  case runParser jsonObject input of
+    Left e -> throwError e
+    Right o -> return $ JsonObject $ fst o
+
+getAllEntities :: JsonValue -> Either AppError JsonValue
+getAllEntities (JsonObject json) = case M.lookup "entities" json of
+    Nothing -> Left 
+      $ newBaseError 
+      $ JsonValidationError "Could not find \"entities\" field in JSON document"
+    Just e -> Right e
+getAllEntities x = Left
+  $ newBaseError
+  $ JsonValidationError
+  $ "Expected JSON Object for getAllEntites, found: "
+  <> show x

@@ -22,6 +22,7 @@ import Control.Applicative (Alternative((<|>), many, some), optional)
 import qualified Data.Map as M (Map, fromList, toList, lookup)
 import Data.Maybe (isNothing)
 import Data.Foldable (foldl')
+import DC.Error (AppError, ErrorDetail (..), newBaseError)
 
 
 -- This is only a subset of JSON for use in the context of this app
@@ -142,7 +143,7 @@ isJsonArray v = case v of
 
 
 class FromJson a where
-  fromJson :: JsonValue -> Either String a
+  fromJson :: JsonValue -> Either AppError a
 
 class ToJson a where
   toJson :: a -> JsonValue
@@ -172,48 +173,79 @@ instance ToJson (String, String) where
   toJson (a, b) = JsonArray [JsonString a, JsonString b]
 
 class IsJson a where
-  fromValue :: JsonValue -> Either String a
+  fromValue :: JsonValue -> Either AppError a
 
 instance IsJson String where
-  fromValue :: JsonValue -> Either String String
+  fromValue :: JsonValue -> Either AppError String
   fromValue (JsonString s) = Right s
-  fromValue _ = Left "Expected JSON String"
+  fromValue x = Left 
+    $ newBaseError 
+    $ JsonValidationError 
+    $ "Expected JSON string, found: " 
+    <> show x 
 
 instance IsJson Int where
-  fromValue :: JsonValue -> Either String Int
+  fromValue :: JsonValue -> Either AppError Int
   fromValue (JsonNumber n) = Right n
-  fromValue _ = Left "Expected JSON Number"
+  fromValue x = Left
+    $ newBaseError
+    $ JsonValidationError 
+    $ "Expected JSON Number, found: " 
+    <> show x
 
 instance IsJson Bool where
-  fromValue :: JsonValue -> Either String Bool
+  fromValue :: JsonValue -> Either AppError Bool
   fromValue (JsonBool b) = Right b
-  fromValue _ = Left "Expected JSON Bool"
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Bool, found: "
+    <> show x
 
 instance IsJson [String] where
-  fromValue :: JsonValue -> Either String [String]
-  fromValue (JsonArray a) = mapM (\case
+  fromValue :: JsonValue -> Either AppError [String]
+  fromValue (JsonArray a) = traverse (\case
     (JsonString s) -> Right s
-    _ -> Left "Expected JSON Array of JSON Strings") a
-  fromValue _ = Left "Expected JSON Array"
+    x -> Left 
+      $ newBaseError
+      $ JsonValidationError
+      $ "Expected JSON Array of JSON Strings, found: "
+      <> show x) a
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array, found: "
+    <> show x
 
 instance IsJson (Int, Int) where
-  fromValue :: JsonValue -> Either String (Int, Int)
+  fromValue :: JsonValue -> Either AppError (Int, Int)
   fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Right (a, b)
-  fromValue _ = Left "Expected JSON Array of two JSON Numbers"
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array of two JSON Numbers, found: "
+    <> show x
 
 instance IsJson (String, String) where
-  fromValue :: JsonValue -> Either String (String, String)
+  fromValue :: JsonValue -> Either AppError (String, String)
   fromValue (JsonArray [JsonString a, JsonString b]) = Right (a, b)
-  fromValue _ = Left "Expected JSON Array of two JSON Strings"
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array of two JSON Strings, found: "
+    <> show x
 
 instance IsJson JsonValue where
-  fromValue :: JsonValue -> Either String JsonValue
+  fromValue :: JsonValue -> Either AppError JsonValue
   fromValue = Right
 
-getField :: IsJson a => String -> JsonObjectMap -> Either String a
+getField :: IsJson a => String -> JsonObjectMap -> Either AppError a
 -- getField k o = fromValue =<< M.lookup k o
 getField k o = case M.lookup k o of
   Just v -> case fromValue v of
     Right a -> Right a
     Left e -> Left e
-  Nothing -> Left $ "JSON error: Key '" <> k <> "' does not exist in object"
+  Nothing -> Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "JSON error: Key '" <> k <> "' does not exist in object"

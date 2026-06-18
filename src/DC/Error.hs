@@ -12,7 +12,10 @@ import Control.Monad.Except (ExceptT, MonadError (throwError, catchError))
 
 data ErrorDetail 
   = ParseError String
-  | EntityValidationError
+  | JsonValidationError String
+  | EntityValidationError String
+  | CliParseError String
+  | OtherError String
   deriving (Show)
 
 data ErrorContextFrame = ErrorContextFrame

@@ -9,14 +9,29 @@ module DC.Types (
   MartialRanged(..),
   Weapon(..),
   WeaponProficiency(..),
-  Entity(..)
+  WeaponProficiencies(..),
+  SaveProficiencies(..),
+  Entity(..),
+  GameState(..),
+  Env(..),
+  EntityChildType(..),
+  EntityChildren(..),
+  EntityChild(..),
+  EntityInfo(..),
+  GameM
 ) where
-import DC.Json (ToJson (toJson), JsonValue (JsonString), IsJson (fromValue))
+import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
+import qualified Data.Map as M
+import System.Random
+import Control.Monad.Trans
+import Data.IORef
+import Control.Monad.Reader
+import DC.Error
 
 data GameState = GameState 
   { currentScene :: String,
-    entities :: Map String Entity
+    entities :: M.Map String Entity
   , gen :: StdGen
   , commits :: [Entity]
   }
@@ -28,7 +43,6 @@ data Env = Env
   }
 
 type GameM a = ReaderT Env AppM a
-
 
 type CheckSuccess = Bool
 
@@ -51,14 +65,16 @@ instance ToJson Ability where
   toJson Wisdom = toJson "wis"
 
 instance IsJson Ability where
-  fromValue :: JsonValue -> Either String Ability
+  fromValue :: JsonValue -> Either AppError Ability
   fromValue (JsonString "cha") = Right Charisma
   fromValue (JsonString "int") = Right Intelligence
   fromValue (JsonString "con") = Right Constitution
   fromValue (JsonString "str") = Right Strength
   fromValue (JsonString "dex") = Right Dexterity
   fromValue (JsonString "wis") = Right Wisdom
-  fromValue _ = Left "Expected a valid ability"
+  fromValue _ = Left 
+    $ newBaseError 
+    $ EntityValidationError "Expected a valid ability"
 
 data SimpleMelee =
   Club |
@@ -173,53 +189,97 @@ instance ToJson MartialRanged where
   toJson w = maybe (toJson "unknown weapon") toJson (lookup (MartialRanged w) weaponNameTable)
 
 instance IsJson SimpleMelee where
-  fromValue :: JsonValue -> Either String SimpleMelee
+  fromValue :: JsonValue -> Either AppError SimpleMelee
   fromValue (JsonString s) =
     case fmap fst (find ((== s) . snd) weaponNameTable) of
       Just (SimpleMelee w') -> Right w'
-      Just _                -> Left "Found weapon but it is not a SimpleMelee"
-      Nothing               -> Left "Unknown weapon name for SimpleMelee"
-  fromValue _ = Left "Expected JSON string for SimpleMelee"
+      Just x                -> Left 
+        $ newBaseError
+        $ EntityValidationError 
+        $ show x
+        <> " is not a SimpleMelee"
+      Nothing               -> Left 
+        $ newBaseError
+        $ EntityValidationError "Unknown weapon name for SimpleMelee"
+  fromValue x = Left 
+    $ newBaseError
+    $ EntityValidationError 
+    $ "Expected JSON string for SimpleMelee, found: "
+    <> show x
 
 instance IsJson SimpleRanged where
-  fromValue :: JsonValue -> Either String SimpleRanged
+  fromValue :: JsonValue -> Either AppError SimpleRanged
   fromValue (JsonString s) = 
     case fst <$> find ((==s) . snd) weaponNameTable of
       Just (SimpleRanged w') -> Right w'
-      Just _ -> Left "Found weapon but it is not a SimpleRanged"
-      Nothing -> Left "Unknown weapon name for SimpleRanged"
-  fromValue _ = Left "Expected JSON string for SimpleRanged"
+      Just x -> Left 
+        $ newBaseError
+        $ EntityValidationError
+        $ show x
+        <> " is not a SimpleRanged"
+      Nothing -> Left 
+        $ newBaseError
+        $ EntityValidationError "Unknown weapon name for SimpleRanged"
+  fromValue x = Left 
+    $ newBaseError
+    $ EntityValidationError 
+    $ "Expected JSON string for SimpleRanged, found: "
+    <> show x
 
 instance IsJson MartialMelee where
-  fromValue :: JsonValue -> Either String MartialMelee
+  fromValue :: JsonValue -> Either AppError MartialMelee
   fromValue (JsonString s) =
     case fst <$> find ((==s) . snd) weaponNameTable of
       Just (MartialMelee w') -> Right w'
-      Just _ -> Left "Found weapon but it is not a MartialMelee"
-      Nothing -> Left "Unknown weapon name for MartialMelee"
-  fromValue _ = Left "Expected JSON string for MartialMelee"
+      Just x -> Left 
+        $ newBaseError
+        $ EntityValidationError
+        $ show x
+        <> " is not a MartialMelee"
+      Nothing -> Left 
+        $ newBaseError
+        $ EntityValidationError "Unknown weapon name for MartialMelee"
+  fromValue x = Left 
+    $ newBaseError
+    $ EntityValidationError 
+    $ "Expected JSON string for MartialMelee, found: "
+    <> show x
 
 instance IsJson MartialRanged where
-  fromValue :: JsonValue -> Either String MartialRanged
+  fromValue :: JsonValue -> Either AppError MartialRanged
   fromValue (JsonString s) =
     case fst <$> find ((==s) . snd) weaponNameTable of
       Just (MartialRanged w') -> Right w'
-      Just _ -> Left "Found weapon but it is not a MartalRanged"
-      Nothing -> Left "Unknown weapon name for MartialRanged"
-  fromValue _ = Left "Expected JSON string for MartialMelee"
+      Just x -> Left 
+        $ newBaseError
+        $ EntityValidationError
+        $ show x
+        <> " is not a MartalRanged"
+      Nothing -> Left 
+        $ newBaseError
+        $ EntityValidationError "Unknown weapon name for MartialRanged"
+  fromValue x = Left 
+    $ newBaseError
+    $ EntityValidationError 
+    $ "Expected JSON string for MartialMelee, found: "
+    <> show x
 
 instance IsJson Weapon where
-  fromValue :: JsonValue -> Either String Weapon
+  fromValue :: JsonValue -> Either AppError Weapon
   fromValue v =
-    case (fromValue v :: Either String SimpleMelee) of
+    case (fromValue v :: Either AppError SimpleMelee) of
       Right w -> Right (SimpleMelee w)
-      Left _ -> case (fromValue v :: Either String SimpleRanged) of
+      Left _ -> case (fromValue v :: Either AppError SimpleRanged) of
         Right w -> Right (SimpleRanged w)
-        Left _ -> case (fromValue v :: Either String MartialMelee) of
+        Left _ -> case (fromValue v :: Either AppError MartialMelee) of
           Right w -> Right (MartialMelee w)
-          Left _ -> case (fromValue v :: Either String MartialRanged) of
+          Left _ -> case (fromValue v :: Either AppError MartialRanged) of
             Right w -> Right (MartialRanged w)
-            Left _ -> Left "Expected JSON value for a Weapon"
+            Left x -> Left 
+              $ newBaseError
+              $ EntityValidationError
+              $ "Expected JSON value for a Weapon, found: "
+              <> show x
 
 instance ToJson Weapon where
   toJson :: Weapon -> JsonValue
@@ -241,7 +301,7 @@ instance ToJson WeaponProficiency where
   toJson (Specific w) = toJson w
 
 instance IsJson WeaponProficiency where
-  fromValue :: JsonValue -> Either String WeaponProficiency
+  fromValue :: JsonValue -> Either AppError WeaponProficiency
   fromValue (JsonString "simple") = Right Simple
   fromValue (JsonString "martial") = Right Martial
   fromValue v = Specific <$> fromValue v
@@ -382,14 +442,24 @@ childTypeMap =
   ]
 
 instance IsJson EntityChild where
-  fromValue :: JsonValue -> Maybe EntityChild
+  fromValue :: JsonValue -> Either AppError EntityChild
   fromValue (JsonObject m) = do
     t <- getField "childType" m
     cid <- getField "childId" m
-    childTypeValue <- lookup t childTypeMap
+    childTypeValue <- case lookup t childTypeMap of
+      Just v -> Right v
+      Nothing -> Left 
+        $ newBaseError 
+        $ EntityValidationError 
+        $ "Unkown child type "
+        <> show t
 
-    Just $ EntityChild { childType = childTypeValue, childId = cid }
-  fromValue _ = Nothing
+    return $ EntityChild { childType = childTypeValue, childId = cid }
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Object for child type, found: "
+    <> show x
 
 instance ToJson EntityChild where
   toJson :: EntityChild -> JsonValue
@@ -398,9 +468,13 @@ instance ToJson EntityChild where
     Nothing -> JsonObject $ M.fromList [("childType", toJson "unknown"), ("childId", toJson cid)]
 
 instance IsJson EntityChildren where
-  fromValue :: JsonValue -> Maybe EntityChildren
+  fromValue :: JsonValue -> Either AppError EntityChildren
   fromValue (JsonArray arr) = EntityChildren <$> traverse fromValue arr
-  fromValue _ = Nothing
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Array for entity children, found: "
+    <> show x
 
 instance ToJson EntityChildren where
   toJson :: EntityChildren -> JsonValue
@@ -415,33 +489,49 @@ instance ToJson ItemInfo where
   toJson (ItemInfo c w) = JsonObject $ M.fromList [("cost", toJson c), ("weight", toJson w)]
 
 instance IsJson EntityInfo where
-  fromValue :: JsonValue -> Maybe EntityInfo
+  fromValue :: JsonValue -> Either AppError EntityInfo
   fromValue (JsonObject m) = do
     ch <- getField "children" m
     nm <- getField "name" m
     return $ EntityInfo { children = ch, name = nm }
-  fromValue _ = Nothing
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Object for EntityInfo, found: "
+    <> show x
 
 instance IsJson ItemInfo where
-  fromValue :: JsonValue -> Maybe ItemInfo
+  fromValue :: JsonValue -> Either AppError ItemInfo
   fromValue (JsonObject m) = ItemInfo 
     <$> getField "cost" m
     <*> getField "weight" m
-  fromValue _ = Nothing
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Object for ItemInfo, found: "
+    <> show x
 
 instance IsJson SaveProficiencies where
-  fromValue :: JsonValue -> Maybe SaveProficiencies
+  fromValue :: JsonValue -> Either AppError SaveProficiencies
   fromValue (JsonArray a) = SaveProficiencies <$> traverse fromValue a
-  fromValue _ = Nothing
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Array for SaveProficiencies, found: "
+    <> show x
 
 instance ToJson SaveProficiencies where
   toJson :: SaveProficiencies -> JsonValue
   toJson (SaveProficiencies xs) = JsonArray $ map toJson xs
 
 instance IsJson WeaponProficiencies where
-  fromValue :: JsonValue -> Maybe WeaponProficiencies
+  fromValue :: JsonValue -> Either AppError WeaponProficiencies
   fromValue (JsonArray a) = WeaponProficiencies <$> traverse fromValue a
-  fromValue _ = Nothing
+  fromValue x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Array for WeaponProficiencies, found: "
+    <> show x
 
 instance ToJson WeaponProficiencies where
   toJson :: WeaponProficiencies -> JsonValue
@@ -555,7 +645,7 @@ instance ToJson Entity where
     ]
 
 instance FromJson Entity where
-  fromJson :: JsonValue -> Maybe Entity
+  fromJson :: JsonValue -> Either AppError Entity
   fromJson (JsonObject o) = do
     t <- getField "type" o
 
@@ -631,5 +721,14 @@ instance FromJson Entity where
       "money" -> Money
         <$> getField "entityInfo" o
         <*> getField "amount" o
-      _ -> Nothing
-  fromJson _ = Nothing
+      x -> Left
+        $ newBaseError
+        $ EntityValidationError
+        $ "Unknown Entity type '"
+        <> show x
+        <> "'"
+  fromJson x = Left
+    $ newBaseError
+    $ EntityValidationError
+    $ "Expected JSON Object for Entity, found: "
+    <> show x
