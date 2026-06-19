@@ -17,8 +17,7 @@ module DC.Types (
   EntityChildType(..),
   EntityChildren(..),
   EntityChild(..),
-  EntityInfo(..),
-  GameM
+  EntityInfo(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -41,8 +40,6 @@ data Env = Env
   , dbPath :: FilePath
   , state :: IORef GameState
   }
-
-type GameM a = ReaderT Env AppM a
 
 type CheckSuccess = Bool
 

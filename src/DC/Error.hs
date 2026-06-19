@@ -9,12 +9,14 @@ module DC.Error (
   AppM
 ) where
 import Control.Monad.Except (ExceptT, MonadError (throwError, catchError))
+import Control.Monad.Reader
 
 data ErrorDetail 
   = ParseError String
   | JsonValidationError String
   | EntityValidationError String
   | CliParseError String
+  | SocketError String
   | OtherError String
   deriving (Show)
 
@@ -28,7 +30,7 @@ data AppError = AppError
   , errorContext :: [ErrorContextFrame]
   } deriving (Show)
 
-err :: String -> [(String, String)] -> AppM a -> AppM a
+err :: String -> [(String, String)] -> AppM a b -> AppM a b
 err actionName dynamics action = 
   catchError action (\(AppError detail context) ->
     let newFrame = ErrorContextFrame 
@@ -47,7 +49,7 @@ newBaseError d = AppError
   , errorContext = []
   }
 
-throwBaseError :: ErrorDetail -> AppM a
+throwBaseError :: ErrorDetail -> AppM a b
 throwBaseError d = throwError $ newBaseError d
 
 mapLeft :: (e -> e') -> Either e a -> Either e' a
@@ -60,4 +62,4 @@ annotateErrorPure frame = mapLeft (\(AppError detail context) -> AppError
   , errorContext = frame : context 
   })
 
-type AppM = ExceptT AppError IO
+type AppM a b = ReaderT a (ExceptT AppError IO) b

@@ -4,7 +4,7 @@ import Network.Socket
 import Control.Monad (forever)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Data.ByteString.Char8 as C
-import System.IO (readFile, withFile, IOMode (ReadWriteMode), hGetContents)
+import System.IO (readFile, withFile, IOMode (ReadWriteMode), hGetContents, hPutStrLn)
 import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
 import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject, getField, writeJsonValue)
@@ -27,7 +27,7 @@ performAction _ "setScene" v = do
   
   case parseResult of
     Right newMap -> writeFile "db.json" $ writeJsonValue (JsonObject newMap)
-    Left e -> putStrLn $ "server daemon encountered parsing error in db.json: " <> e
+    Left e -> print e
 
 performAction _ _ _ = putStrLn "unrecognized action"
 
@@ -37,10 +37,10 @@ handleClient conn = do
 
   case runParser jsonObject (C.unpack msg) of
     Right (r, "") -> case performAction conn <$> getField "action" r <*> getField "payload" r of
-      Just result -> result
-      Nothing -> putStrLn "malformed request"
+      Right result -> result
+      Left e -> print e
     Right (_, s) -> putStrLn $ "server daemon did not parse entire client message. leftover: " <> s
-    Left e -> putStrLn $ "server daemon encountered parsing error in client request:" <> e
+    Left e -> print e
 
 main :: IO ()
 main = withSocketsDo $ do

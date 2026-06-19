@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module DC.Actions (
   getAbilityScore,
@@ -9,24 +10,25 @@ module DC.Actions (
   savingThrow,
   hasWeaponProficiency,
   attackRoll,
-  saveEntity,
+  updateEntity,
   addChild,
   removeChild,
   tooFewArgumentsError,
   parseCliArgs,
   getJsonFromDaemon,
-  getJsonFromInput
+  getJsonFromInput,
+  getJson
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
 import DC.Dice (rollDice)
-import System.Random (StdGen)
+import System.Random (StdGen, getStdGen)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef')
 import Control.Monad.Reader (asks, MonadTrans (lift))
 import qualified Data.Map as M
-import System.IO (hPutStrLn, stderr, getContents')
-import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError)
+import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin)
+import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError, err, AppM)
 import DC.Opts (Option, cliArg)
 import System.Environment (getArgs)
 import DC.Parse (Parser(runParser))
@@ -35,7 +37,7 @@ import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Data.ByteString.Char8 as C
-import DC.Json (JsonValue (JsonObject), jsonObject)
+import DC.Json (JsonValue (JsonObject), jsonObject, FromJson (fromJson))
 import System.Timeout (timeout)
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
@@ -47,7 +49,7 @@ getAbilityScore (Actor { dex }) Dexterity = Right dex
 getAbilityScore (Actor { wis }) Wisdom = Right wis
 getAbilityScore e a = Left
   $ newBaseError
-  $ OtherError 
+  $ OtherError
   $ "Unknown Ability type or not an Actor for getAbilityScore. Ability type: "
   <> show a
   <> "Entity: "
@@ -57,15 +59,15 @@ getAbilityModifier :: Entity -> Ability -> Either AppError Int
 getAbilityModifier e a = (\s -> (s - 10) `div` 2) <$> getAbilityScore e a
 
 abilityCheck :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
-abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc) 
+abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc)
   <$> getAbilityModifier entity ability
 
 hasSaveProficiency :: Entity -> Ability -> Either AppError Bool
-hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Right 
+hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Right
   $ ability `elem` xs
 hasSaveProficiency e a = Left
   $ newBaseError
-  $ OtherError 
+  $ OtherError
   $ "Unknown Ability type or not an Actor for hasSaveProficiency. Ability type: "
   <> show a
   <> "Entity: "
@@ -75,7 +77,7 @@ getProficiencyBonus :: Entity -> Either AppError Int
 getProficiencyBonus (Actor { level }) = Right $ ((level - 1) `div` 4) + 2
 getProficiencyBonus x = Left
   $ newBaseError
-  $ OtherError 
+  $ OtherError
   $ "Expected an Actor for getProficiencyBonus, found: "
   <> show x
 
@@ -87,12 +89,12 @@ savingThrow gen entity ability dc = do
   proficiencyBonus <- getProficiencyBonus entity
   let roll = rollDice gen 1 20
 
-  return $ if pro 
+  return $ if pro
     then roll + abilityModifier + proficiencyBonus >= dc
     else roll + abilityModifier >= dc
 
 hasWeaponProficiency :: Entity -> WeaponProficiency -> Either AppError Bool
-hasWeaponProficiency (Actor { weaponProficiencies = WeaponProficiencies xs }) proficiency = Right 
+hasWeaponProficiency (Actor { weaponProficiencies = WeaponProficiencies xs }) proficiency = Right
   $ proficiency `elem` xs
 hasWeaponProficiency e x = Left
   $ newBaseError
@@ -112,7 +114,7 @@ attackRoll gen (Weapon { weapon }) entity ability dc = do
         MartialMelee w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialMelee w))
         MartialRanged w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialRanged w)))
   let roll = rollDice gen 1 20
-  
+
   return $ case roll of
     1 -> False
     20 -> True
@@ -124,17 +126,21 @@ attackRoll _ e _ _ _ = Left
   $ OtherError
   $ "Expected Weapon for attackRoll, found: "
   <> show e
-  
-saveEntity :: String -> Entity -> GameM ()
-saveEntity k e = do
+
+updateEntity :: String -> Entity -> AppM Env ()
+updateEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", show e)] $ do
   stateRef <- asks state
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
     let newEntities = M.insert k e (entities st)
     in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
 
-addChild :: EntityChildType -> String -> String -> GameM ()
-addChild t p c = do
+addChild :: EntityChildType -> String -> String -> AppM Env ()
+addChild t p c = err "addChild"
+  [ ("child_type", show t)
+  , ("parent_id", show p)
+  , ("child_id", show c)
+  ] $ do
   stateRef <- asks state
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
@@ -148,8 +154,12 @@ addChild t p c = do
           ) p (entities st)
     in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
 
-removeChild :: EntityChildType -> String -> String -> GameM ()
-removeChild t p c = do
+removeChild :: EntityChildType -> String -> String -> AppM Env ()
+removeChild t p c = err "removeChild"
+  [ ("child_type", show t)
+  , ("parent_id", show p)
+  , ("child_id", show c)
+  ] $ do
   stateRef <- asks state
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
@@ -158,50 +168,45 @@ removeChild t p c = do
             let oldInfo = entityInfo parent
                 oldChildren = children oldInfo
                 newChildren = case oldChildren of
-                  EntityChildren xs -> EntityChildren (filter (\child -> childType child /= t && childId child /= c) xs) 
+                  EntityChildren xs -> EntityChildren (filter (\child -> childType child /= t && childId child /= c) xs)
             in parent { entityInfo = oldInfo { children = newChildren } }
           ) p (entities st)
     in (st { entities = newEntities }, ())
 
-tooFewArgumentsError :: GameM ()
+tooFewArgumentsError :: AppM Env ()
 tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few arguments"
 
-parseCliArgs :: GameM [Option]
-parseCliArgs = do
+parseCliArgs :: AppM Env [Option]
+parseCliArgs = err "parseCliArgs" [] $ do
   args <- liftIO getArgs
   let result = map fst <$> traverse (runParser cliArg) args
 
   case result of
-    Left err -> throwError err
+    Left e -> throwError e
     Right opts -> return opts
 
-getJsonFromDaemon :: Socket -> GameM JsonValue
-getJsonFromDaemon sock = do
+getJsonFromDaemon :: Socket -> AppM Env JsonValue
+getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do
   liftIO $ sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
   r <- liftIO $ timeout 3000000 $ recv sock 4096
 
   case r of
-    Nothing -> lift $ throwBaseError $ SocketError "Socket timed out"
+    Nothing -> throwBaseError $ SocketError "Socket timed out"
     Just d -> case runParser jsonObject (C.unpack d) of
       Left e -> throwError e
       Right o -> return $ JsonObject $ fst o
 
-getJsonFromInput :: GameM JsonValue
-getJsonFromInput = do
+getJsonFromInput :: AppM Env JsonValue
+getJsonFromInput = err "getJsonFromInput" [] $ do
   input <- liftIO getContents
 
   case runParser jsonObject input of
     Left e -> throwError e
     Right o -> return $ JsonObject $ fst o
 
-getAllEntities :: JsonValue -> Either AppError JsonValue
-getAllEntities (JsonObject json) = case M.lookup "entities" json of
-    Nothing -> Left 
-      $ newBaseError 
-      $ JsonValidationError "Could not find \"entities\" field in JSON document"
-    Just e -> Right e
-getAllEntities x = Left
-  $ newBaseError
-  $ JsonValidationError
-  $ "Expected JSON Object for getAllEntites, found: "
-  <> show x
+getJson :: Socket -> AppM Env JsonValue
+getJson sock = do
+  isTerm <- liftIO $ hIsTerminalDevice stdin
+  if isTerm
+    then do getJsonFromDaemon sock
+    else getJsonFromInput

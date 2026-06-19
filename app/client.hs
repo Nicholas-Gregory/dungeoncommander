@@ -17,135 +17,48 @@ import Text.Read (readMaybe)
 import DC.Dice (processExpression)
 import qualified Data.Map as M
 import Debug.Trace (trace)
-import DC.Entity(Entity (Scene)) 
 import Data.Map (mapMaybe)
-import DC.Game (AppM, GameState (..), Env (..))
 import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
-import DC.Actions (tooFewArgumentsError)
+import DC.Actions (tooFewArgumentsError, parseCliArgs, getJson)
 import Data.Traversable (traverse)
+import Data.IORef (newIORef)
+import DC.Types (Env(..), GameState (..))
+import DC.Error (AppM)
 
-processCommand :: Socket -> [Option] -> AppM ()
-processCommand _ [Arg "create", Arg "scene"] = tooFewArgumentsError
-processCommand _ (Arg "create":Arg "scene":[_]) = tooFewArgumentsError
-processCommand _ (Arg "create":Arg "scene":[_, _]) = tooFewArgumentsError
-processCommand sock (Arg "create":Arg "scene":xs@[_, _, _]) = do
-  let names = [n | OptArg ("name", n) <- xs]
-  let ids = [i | OptArg ("id", i) <- xs]
-  let dims = [d | NumList ("dim", d) <- xs]
+runApp :: AppM Env ()
+runApp = do
+  sock <- liftIO $ socket AF_UNIX Stream defaultProtocol
+  addrPath <- asks socketPath
+  liftIO $ connect sock (SockAddrUnix addrPath)
+  args <- parseCliArgs
+  json <- getJson sock
 
-  case (names, ids, dims) of
-    ([name], [id], [dimensions]) -> do 
-      liftIO $ putStrLn $ name <> id
-      liftIO $ print dimensions
-    _ -> liftIO $ hPutStrLn stderr "To create a scene, provide a --name, --id, and --dim=x,y"
-  
+
+  liftIO $ print json
 
 main :: IO ()
 main = withSocketsDo $ do
-  args <- getArgs
-  sock <- socket AF_UNIX Stream defaultProtocol
-  isTerm <- hIsTerminalDevice stdin
   gen <- getStdGen
-  input <- if isTerm
-    then do
-      connect sock (SockAddrUnix "/tmp/dc.sock")
-      sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
-      r <- recv sock 4096
-      return (C.unpack r)
-    else getContents
-  let opts = map fst <$> mapM (runParser cliArg) args
+  let initState = GameState
+        { currentScene = ""
+        , entities = M.empty
+        , gen = gen
+        , commits = []
+        }
+  stateRef <- newIORef initState
+  let env = Env
+        { socketPath = "/tmp/dc.sock"
+        , dbPath = "db.json"
+        , state = stateRef
+        }
+  
+  result <- runExceptT (runReaderT runApp env)
 
+  case result of
+    Left e -> print e
+    Right _ -> putStrLn "did it"
 
-  case runParser jsonObject input of
-    Left e -> hPutStrLn stderr $ "client recieved invalid JSON from server daemon: " <> e
-    Right (json, _) -> do
-      case opts of
-        Right [Arg "scene", Arg sceneIdentifier] -> do
-          connect sock (SockAddrUnix "/tmp/dc.sock")
-
-          sendAll sock $ C.pack $ "{ \"action\": \"setScene\", \"payload\": \"" <> sceneIdentifier <> "\" }"
-        _ -> do
-          case getField "currentScene" json :: Either String String of
-            Left _ -> case M.lookup "entities" json of
-              Nothing -> hPutStrLn stderr "client recieved JSON without top-level \"entities\" entry"
-              Just (JsonObject entityMap) -> do
-                let scenes = M.filter (\case
-                     (JsonObject o) -> case getField "type" o of
-                        Right "scene" -> True
-                        Right _ -> False
-                        Left _ -> False
-                     _ -> False) entityMap
-
-                hPutStrLn stderr "No current active scene. Use \"dc scene\" passing the name or ID of the scene you want to be in."
-                hPutStrLn stderr "Currently saved scenes:"
-
-                -- extractName :: JsonValue -> Maybe String
-                let extractName (JsonObject o) = do
-                      infoVal <- M.lookup "entityInfo" o
-                      case infoVal of
-                        JsonObject infoMap -> do
-                          nameVal <- M.lookup "name" infoMap
-                          case nameVal of
-                            JsonString s -> Just s
-                            _ -> Nothing
-                        _ -> Nothing
-                    extractName _ = Nothing
-
-                -- collect (id, name) pairs and print them
-                let namedList = [(k, n) | (k, v) <- M.toList scenes, Just n <- [extractName v]]
-                mapM_ (\(k, n) -> hPutStrLn stderr $ "ID: " ++ k ++ ", Name: " ++ n) namedList
-            Right sceneIdentifier -> do
-              case M.lookup "entities" json of
-                Nothing -> hPutStrLn stderr "client recieved JSON without top-level \"entities\" entry"
-                Just (JsonObject prevEntities) -> do
-                  case (fromJson =<< M.lookup sceneIdentifier prevEntities) :: Maybe Entity of
-                    Nothing -> hPutStrLn stderr "Current scene not found in entities list"
-                    Just currentScene -> do
-                      -- connect sock (SockAddrUnix "/tmp/dc.sock")
-                      case opts of
-                        Left e -> hPutStrLn stderr $ "Client CLI parsing error: " <> e
-                        Right o -> do
-                          case traverse (\val ->
-                                 case val of
-                                   JsonObject objMap ->
-                                     let objWithoutCurrent = JsonObject (M.filterWithKey (\k _ -> k /= "currentScene") objMap)
-                                     in (fromJson objWithoutCurrent :: Maybe Entity)
-                                   _ -> Nothing
-                               ) prevEntities of
-                            Nothing -> do
-                              print prevEntities
-                              hPutStrLn stderr "Error processing input JSON"
-                            Just entityMap -> do
-                              let gen = mkStdGen 100
-                              let gameState = GameState {
-                                commits=[], 
-                                currentScene=sceneIdentifier, 
-                                gen=gen,
-                                entities=entityMap
-                              }
-                              stateRef <- newIORef gameState
-                              let env = Env { socketPath="/tmp/dc.sock", dbPath="db.json", state=stateRef}
-
-                              result <- runReaderT (runExceptT $ processCommand sock o) env
-
-                              case result of
-                                Left e -> hPutStrLn stderr $ "Game logic error: " <> e
-                                Right () -> do
-                                  finalState <- readIORef (state env)
-                                  let entitiesJsonResult = M.map toJson $ entities finalState
-                                  let finalJson = M.fromList [ ("currentScene", toJson currentScene)
-                                                             , ("entities", JsonObject entitiesJsonResult) 
-                                                             ]
-                                  let serializedJson = writeJsonValue $ JsonObject finalJson
-                                  
-                                  putStrLn serializedJson
-
-
-
-
-
-
-
+  return ()
