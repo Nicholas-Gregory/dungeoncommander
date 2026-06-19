@@ -17,7 +17,9 @@ module DC.Actions (
   parseCliArgs,
   getJsonFromDaemon,
   getJsonFromInput,
-  getJson
+  getJson,
+  initCurrentScene,
+  initEntities
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -37,7 +39,7 @@ import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Data.ByteString.Char8 as C
-import DC.Json (JsonValue (JsonObject), jsonObject, FromJson (fromJson))
+import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap)
 import System.Timeout (timeout)
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
@@ -210,3 +212,40 @@ getJson sock = do
   if isTerm
     then do getJsonFromDaemon sock
     else getJsonFromInput
+
+initCurrentScene :: JsonValue -> AppM Env ()
+initCurrentScene (JsonObject o) = err "initCurrentScene" [("input_json", show o)] $ do
+  case M.lookup "currentScene" o of
+    Nothing -> throwBaseError $ JsonValidationError "No \"currentScene\" field in input JSON"
+    Just (JsonString s) -> do
+      stateRef <- asks state
+
+      liftIO $ atomicModifyIORef' stateRef $ \st ->
+        (st { currentScene = s }, ())
+    Just x -> throwBaseError 
+      $ JsonValidationError 
+      $ "Expected JSON String for \"currentScene\", found: "
+      <> show x
+initCurrentScene x = err "initCurrentScene" [("input_json", show x)] $ throwBaseError
+  $ JsonValidationError "Expected JSON Object"
+
+getEntityJson :: JsonValue -> AppM Env (M.Map String JsonValue)
+getEntityJson (JsonObject o) = err "getEntityJson" [("input_json", show o)] $ do 
+  case M.lookup "entities" o of
+    Nothing -> throwBaseError $ JsonValidationError "Need \"entities\" field in input JSON"
+    Just (JsonObject entities) -> return entities
+    Just _ -> throwBaseError $ JsonValidationError "Expected JSON Object for \"entities\" field"
+getEntityJson x = err "getEntityJson" [("input_json", show x)] $ throwBaseError
+  $ JsonValidationError "Expected JSON Object"
+
+initEntities :: JsonValue -> AppM Env ()
+initEntities o = err "initEntities" [("input_json", show o)] $ do
+  entityMap <- getEntityJson o
+
+  case traverse fromJson entityMap of
+    Left e -> throwError e
+    Right entities -> do
+      stateRef <- asks state
+
+      liftIO $ atomicModifyIORef' stateRef $ \st ->
+        (st { entities = entities }, ())

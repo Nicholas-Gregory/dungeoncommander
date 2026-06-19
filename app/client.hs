@@ -22,7 +22,7 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
-import DC.Actions (tooFewArgumentsError, parseCliArgs, getJson)
+import DC.Actions (tooFewArgumentsError, parseCliArgs, getJson, initCurrentScene, initEntities)
 import Data.Traversable (traverse)
 import Data.IORef (newIORef)
 import DC.Types (Env(..), GameState (..))
@@ -35,9 +35,11 @@ runApp = do
   liftIO $ connect sock (SockAddrUnix addrPath)
   args <- parseCliArgs
   json <- getJson sock
+  initCurrentScene json
+  initEntities json
 
 
-  liftIO $ print json
+  return ()
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -59,6 +61,9 @@ main = withSocketsDo $ do
 
   case result of
     Left e -> print e
-    Right _ -> putStrLn "did it"
+    Right () -> do
+      c <- readIORef $ state env
+
+      print $ entities c
 
   return ()
