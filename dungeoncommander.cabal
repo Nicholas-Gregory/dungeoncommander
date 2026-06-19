@@ -65,9 +65,8 @@ library
         DC.Json
         DC.Actions
         DC.Parse
-        DC.Entity
         DC.Types
-
+        DC.Error
     -- Modules included in this library but not exported.
     
 
@@ -78,7 +77,10 @@ library
     build-depends:    
         base ^>=4.18.3.0,
         random,
-        containers
+        containers,
+        mtl,
+        network,
+        bytestring
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -120,7 +122,9 @@ executable dc
         network, 
         bytestring, 
         random,
-        containers
+        containers,
+        mtl,
+        transformers
     default-language: Haskell2010
 
 test-suite dungeoncommander-test

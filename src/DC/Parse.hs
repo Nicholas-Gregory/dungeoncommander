@@ -2,8 +2,7 @@
 {-# LANGUAGE InstanceSigs #-}
 
 module DC.Parse (
-  Parser,
-  runParser,
+  Parser(..),
   item,
   sat,
   char,
@@ -15,52 +14,66 @@ module DC.Parse (
   ) where
 import Control.Applicative (Alternative(empty, (<|>), some), optional)
 import Data.Char (isDigit, isSpace)
+import DC.Error ( AppError(..), newBaseError, ErrorDetail (ParseError), ErrorContextFrame(..), annotateErrorPure )
 
-newtype Parser a = Parser { runParser :: String -> Maybe (a, String) }
+newtype Parser a = Parser { runParser :: String -> Either AppError (a, String) }
 
 instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
-  fmap f (Parser r) = Parser { runParser = maybe Nothing (\ (v, s) -> Just (f v, s)) . r }
+  fmap f (Parser r) = Parser $ \input -> case r input of
+    Right (a, s) -> Right (f a, s)
+    Left e -> Left e
 
 instance Applicative Parser where
   pure :: a -> Parser a
-  pure x = Parser $ \s -> Just (x, s)
+  pure x = Parser $ \s -> Right (x, s)
   (<*>) :: Parser (a -> b) -> Parser a -> Parser b
-  p1 <*> p2 = Parser $ \s -> maybe Nothing (\ (f, s') -> maybe Nothing (\ (v, s'') -> Just (f v, s'')) (runParser p2 s')) (runParser p1 s)
+  (Parser f) <*> (Parser a) = Parser $ \input -> case f input of
+    Right (f', s) -> case a s of
+      Right (v, s') -> Right (f' v, s')
+      Left e -> Left e
+    Left e -> Left e
 
 instance Alternative Parser where
   empty :: Parser a
-  empty = Parser $ const Nothing
+  empty = Parser $ const $ Left $ newBaseError $ ParseError "Empty parser"
   (<|>) :: Parser a -> Parser a -> Parser a
-  p1 <|> p2 = Parser $ \s -> case runParser p1 s of
-    Nothing -> runParser p2 s
-    Just result -> Just result
+  (Parser a) <|> (Parser b) = Parser $ \input -> case a input of
+    Right result -> Right result
+    Left _ -> case b input of
+      Right r -> Right r
+      Left e2 -> annotateErrorPure (ErrorContextFrame 
+        { errorAction = "parserBranch"
+        , errorData = [("input", input)] 
+        }) (Left e2)
 
 instance Monad Parser where
   (>>=) :: Parser a -> (a -> Parser b) -> Parser b
-  m >>= f = Parser $ \s -> maybe Nothing (\ (v, s') -> runParser (f v) s') (runParser m s) 
+  (Parser a) >>= f = Parser $ \input -> case a input of
+    Left e -> Left e
+    Right (a', s) -> runParser (f a') s
 
 instance MonadFail Parser where 
   fail :: String -> Parser a
-  fail _ = empty
+  fail s = Parser $ \_ -> Left $ newBaseError $ ParseError s
 
 item :: Parser Char
 item = Parser $ \case
-  "" -> Nothing
-  (x:xs) -> Just (x, xs)
+  "" -> Left $ newBaseError $ ParseError "Cannot parse empty input"
+  (x:xs) -> Right (x, xs)
 
-sat :: (Char -> Bool) -> Parser Char
-sat p = Parser $ \case
-  "" -> Nothing
+sat :: String -> (Char -> Bool) -> Parser Char
+sat errMsg p = Parser $ \case
+  "" -> Left $ newBaseError $ ParseError "Unexpected end of input"
   (x:xs) -> if p x
-            then Just (x, xs)
-            else Nothing
+            then Right (x, xs)
+            else Left $ newBaseError $ ParseError (errMsg <> " (found '" <> [x] <> "')")
 
 char :: Char -> Parser Char
-char c = sat (== c)
+char c = sat ("Expected '" <> [c] <> "'") (== c)
 
 digit :: Parser Char
-digit = sat isDigit
+digit = sat "Expected a digit" isDigit
 
 string :: String -> Parser String
 string "" = empty
@@ -71,7 +84,7 @@ space :: Parser String
 space = some $ char ' '
 
 whitespace :: Parser String
-whitespace = some $ sat isSpace
+whitespace = some $ sat "Expected some whitespace" isSpace
 
 number :: Parser Int
 number = (\s -> read s :: Int) <$> some digit

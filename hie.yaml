@@ -1,0 +1,13 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:dungeoncommander"
+
+    - path: "app/daemon.hs"
+      component: "dungeoncommander:exe:dc-daemon"
+
+    - path: "app/client.hs"
+      component: "dungeoncommander:exe:dc"
+
+    - path: "test"
+      component: "dungeoncommander:test:dungeoncommander-test"

@@ -22,6 +22,7 @@ import Control.Applicative (Alternative((<|>), many, some), optional)
 import qualified Data.Map as M (Map, fromList, toList, lookup)
 import Data.Maybe (isNothing)
 import Data.Foldable (foldl')
+import DC.Error (AppError, ErrorDetail (..), newBaseError)
 
 
 -- This is only a subset of JSON for use in the context of this app
@@ -76,7 +77,7 @@ jsonEscape = (\_ c -> '\\' : [c]) <$> char '\\' <*> item
 jsonString :: Parser String
 jsonString = (\_ s _ -> s) 
   <$> char '"' 
-  <*> (concat <$> many (jsonEscape <|> some (sat (liftA2 (&&) (/='"') (/='\\')))))
+  <*> (concat <$> many (jsonEscape <|> some (sat "Unexpected end of string/escape character" (liftA2 (&&) (/='"') (/='\\')))))
   <*> char '"'
 
 jsonBool :: Parser Bool
@@ -142,7 +143,7 @@ isJsonArray v = case v of
 
 
 class FromJson a where
-  fromJson :: JsonValue -> Maybe a
+  fromJson :: JsonValue -> Either AppError a
 
 class ToJson a where
   toJson :: a -> JsonValue
@@ -172,39 +173,79 @@ instance ToJson (String, String) where
   toJson (a, b) = JsonArray [JsonString a, JsonString b]
 
 class IsJson a where
-  fromValue :: JsonValue -> Maybe a
+  fromValue :: JsonValue -> Either AppError a
 
 instance IsJson String where
-  fromValue :: JsonValue -> Maybe String
-  fromValue (JsonString s) = Just s
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError String
+  fromValue (JsonString s) = Right s
+  fromValue x = Left 
+    $ newBaseError 
+    $ JsonValidationError 
+    $ "Expected JSON string, found: " 
+    <> show x 
 
 instance IsJson Int where
-  fromValue :: JsonValue -> Maybe Int
-  fromValue (JsonNumber n) = Just n
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError Int
+  fromValue (JsonNumber n) = Right n
+  fromValue x = Left
+    $ newBaseError
+    $ JsonValidationError 
+    $ "Expected JSON Number, found: " 
+    <> show x
 
 instance IsJson Bool where
-  fromValue :: JsonValue -> Maybe Bool
-  fromValue (JsonBool b) = Just b
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError Bool
+  fromValue (JsonBool b) = Right b
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Bool, found: "
+    <> show x
 
 instance IsJson [String] where
-  fromValue :: JsonValue -> Maybe [String]
-  fromValue (JsonArray a) = mapM (\case
-    (JsonString s) -> Just s
-    _ -> Nothing) a
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError [String]
+  fromValue (JsonArray a) = traverse (\case
+    (JsonString s) -> Right s
+    x -> Left 
+      $ newBaseError
+      $ JsonValidationError
+      $ "Expected JSON Array of JSON Strings, found: "
+      <> show x) a
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array, found: "
+    <> show x
 
 instance IsJson (Int, Int) where
-  fromValue :: JsonValue -> Maybe (Int, Int)
-  fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Just (a, b)
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError (Int, Int)
+  fromValue (JsonArray [JsonNumber a, JsonNumber b]) = Right (a, b)
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array of two JSON Numbers, found: "
+    <> show x
 
 instance IsJson (String, String) where
-  fromValue :: JsonValue -> Maybe (String, String)
-  fromValue (JsonArray [JsonString a, JsonString b]) = Just (a, b)
-  fromValue _ = Nothing
+  fromValue :: JsonValue -> Either AppError (String, String)
+  fromValue (JsonArray [JsonString a, JsonString b]) = Right (a, b)
+  fromValue x = Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array of two JSON Strings, found: "
+    <> show x
 
-getField :: IsJson a => String -> JsonObjectMap -> Maybe a
-getField k o = maybe Nothing fromValue (M.lookup k o)
+instance IsJson JsonValue where
+  fromValue :: JsonValue -> Either AppError JsonValue
+  fromValue = Right
+
+getField :: IsJson a => String -> JsonObjectMap -> Either AppError a
+-- getField k o = fromValue =<< M.lookup k o
+getField k o = case M.lookup k o of
+  Just v -> case fromValue v of
+    Right a -> Right a
+    Left e -> Left e
+  Nothing -> Left 
+    $ newBaseError
+    $ JsonValidationError
+    $ "JSON error: Key '" <> k <> "' does not exist in object"
