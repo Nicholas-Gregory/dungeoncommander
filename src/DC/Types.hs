@@ -17,7 +17,8 @@ module DC.Types (
   EntityChildType(..),
   EntityChildren(..),
   EntityChild(..),
-  EntityInfo(..)
+  EntityInfo(..),
+  VerbosityLevel(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -40,6 +41,12 @@ data Env = Env
   , dbPath :: FilePath
   , state :: IORef GameState
   }
+
+data VerbosityLevel
+  = Name
+  | Stats
+  | All
+  deriving (Show, Eq)
 
 type CheckSuccess = Bool
 

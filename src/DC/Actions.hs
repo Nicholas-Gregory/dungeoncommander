@@ -10,7 +10,7 @@ module DC.Actions (
   savingThrow,
   hasWeaponProficiency,
   attackRoll,
-  updateEntity,
+  saveEntity,
   addChild,
   removeChild,
   tooFewArgumentsError,
@@ -19,14 +19,17 @@ module DC.Actions (
   getJsonFromInput,
   getJson,
   initCurrentScene,
-  initEntities
+  initEntities,
+  setCurrentScene,
+  getEntityById,
+  printScene
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
 import DC.Dice (rollDice)
 import System.Random (StdGen, getStdGen)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Data.IORef (atomicModifyIORef')
+import Data.IORef (atomicModifyIORef', readIORef)
 import Control.Monad.Reader (asks, MonadTrans (lift))
 import qualified Data.Map as M
 import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin)
@@ -41,6 +44,7 @@ import Network.Socket.ByteString (sendAll, recv)
 import qualified Data.ByteString.Char8 as C
 import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap)
 import System.Timeout (timeout)
+import Data.Foldable (Foldable(foldl'))
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -129,8 +133,8 @@ attackRoll _ e _ _ _ = Left
   $ "Expected Weapon for attackRoll, found: "
   <> show e
 
-updateEntity :: String -> Entity -> AppM Env ()
-updateEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", show e)] $ do
+saveEntity :: String -> Entity -> AppM Env ()
+saveEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", show e)] $ do
   stateRef <- asks state
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
@@ -249,3 +253,39 @@ initEntities o = err "initEntities" [("input_json", show o)] $ do
 
       liftIO $ atomicModifyIORef' stateRef $ \st ->
         (st { entities = entities }, ())
+
+setCurrentScene :: String -> AppM Env ()
+setCurrentScene scene = do
+  stateRef <- asks state
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    (st { currentScene = scene }, ())
+
+getEntityById :: String -> AppM Env Entity
+getEntityById entityId = err "getEntityById" [("entity_id", show entityId)] $ do
+  stateRef <- asks state
+  gameState <- liftIO $ readIORef stateRef
+  let gameEntities = entities gameState
+
+  case M.lookup entityId gameEntities of
+    Nothing -> throwBaseError $ OtherError "Entity with this ID does not exist in state"
+    Just entity -> return entity
+
+printScene :: VerbosityLevel -> String -> AppM Env ()
+printScene v eid = err "printScene" 
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        (x, y) = dimensions entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString <> ", Dimensions: " <> show x <> " by " <> show y
+        vAllString = vNameString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
