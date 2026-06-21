@@ -3,7 +3,49 @@ module DC.Opts (
 ) where
 
 import Options.Applicative
-import DC.Types (Command)
+
+data Command
+  = SceneCommand SceneAction
+  | ActorCommand ActorAction
+  | ObjectCommand 
+  | TrapCommand 
+  | ItemCommand 
+  | ArmorCommand 
+  | WeaponCommand 
+  | ContainerCommand 
+  | MountCommand 
+  | SpellCommand 
+  | MoneyCommand 
+
+data SceneAction
+  = SceneCreate
+  | SceneDelete
+  | SceneUpdate UpdateScene
+  | SceneAdd
+  | SceneRemove
+  | SceneAddTo
+  | SceneRemoveFrom
+
+data ActorAction
+  = ActorCreate
+  | ActorDelete
+  | ActorUpdate UpdateActor
+  | ActorAdd
+  | ActorRemove
+  | ActorAddTo
+  | ActorRemoveFrom
+
+rootCommand :: Parser Command
+rootCommand = hsubparser
+  ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
+    (progDesc "Select a Scene, or manage Scenes"))
+  <> command "actor" (info (helper <*> (ActorCommand <$> actorAction))
+    (progDesc "Select an Actor, or manage Actors")))
+
+sceneAction :: Parser SceneAction
+sceneAction = hsubparser
+  ( command "update" (info (helper <*> updateScene) 
+    (progDesc "Directly update values for a particular Scene")))
 
 data UpdateScene = UpdateScene
   { sceneName :: Maybe String
@@ -11,8 +53,8 @@ data UpdateScene = UpdateScene
   , sceneY :: Maybe Int
   }
 
-updateScene :: Parser UpdateScene
-updateScene = UpdateScene
+updateScene :: Parser SceneAction
+updateScene = SceneUpdate <$> (UpdateScene
   <$> optional (strOption
     ( long "name"
     <> short 'n'
@@ -25,7 +67,12 @@ updateScene = UpdateScene
   <*> optional (option auto
     ( short 'y'
     <> metavar "INTEGER"
-    <> help "The new Y dimension of the Scene"))
+    <> help "The new Y dimension of the Scene")))
+
+actorAction :: Parser ActorAction
+actorAction = hsubparser
+  ( command "update" (info (helper <*> updateActor)
+    (progDesc "Directly update values for a particular Actor")))
 
 data UpdateActor = UpdateActor
   { actorName :: Maybe String
@@ -44,8 +91,8 @@ data UpdateActor = UpdateActor
   , actorLevel :: Maybe Int
   }
 
-updateActor :: Parser UpdateActor
-updateActor = UpdateActor
+updateActor :: Parser ActorAction
+updateActor = ActorUpdate <$> (UpdateActor
   <$> optional (strOption
     ( long "name"
     <> short 'n'
@@ -53,43 +100,43 @@ updateActor = UpdateActor
     <> help "The new name of the Actor"))
   <*> optional (option auto
     ( short 'x'
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new X coordinate of the Actor's position"))
   <*> optional (option auto
     ( short 'y'
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Y coordinate of the Actor's position"))
   <*> optional (option auto
     ( long "current-hp"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new current HP of the Actor"))
   <*> optional (option auto
     ( long "max-hp"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new maximum HP of the Actor"))
   <*> optional (option auto
     ( long "cha"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Charisma ability score of the Actor"))
   <*> optional (option auto
     ( long "int"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Intelligence ability score of the Actor"))
   <*> optional (option auto
     ( long "con"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Constitution ability score of the Actor"))
   <*> optional (option auto
     ( long "str"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Strength ability score of the Actor"))
   <*> optional (option auto
     ( long "dex"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Dexterity ability score of the Actor"))
   <*> optional (option auto
     ( long "wis"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "Then new Wisdom ability score of the Actor"))
   <*> optional (option auto
     ( long "hd"
@@ -97,10 +144,10 @@ updateActor = UpdateActor
     <> help "A Dice Expression corresponding to the new Hit Dice of the Actor"))
   <*> optional (option auto
     ( long "ac"
-    <> metavar "INT"
+    <> metavar "INTEGER"
     <> help "The new Armor Class of the Actor"))
   <*> optional (option auto
     ( long "level"
     <> short 'l'
-    <> metavar "INT"
-    <> help "The new Level of the Actor"))
+    <> metavar "INTEGER"
+    <> help "The new Level of the Actor")))

@@ -19,7 +19,6 @@ module DC.Types (
   EntityChild(..),
   EntityInfo(..),
   VerbosityLevel(..),
-  Command(..),
   PrintOptions(..),
   EntityChildManipulationOptions(..),
   EntityOptions(..)
@@ -71,18 +70,7 @@ data EntityOptions
   | RemoveFrom EntityChildManipulationOptions
   | Print PrintOptions VerbosityLevel
 
-data Command
-  = SceneCommand EntityOptions
-  | ActorCommand EntityOptions
-  | ObjectCommand EntityOptions
-  | TrapCommand EntityOptions
-  | ItemCommand EntityOptions
-  | ArmorCommand EntityOptions
-  | WeaponCommand EntityOptions
-  | ContainerCommand EntityOptions
-  | MountCommand EntityOptions
-  | SpellCommand EntityOptions
-  | MoneyCommand EntityOptions
+
 
 type CheckSuccess = Bool
 
