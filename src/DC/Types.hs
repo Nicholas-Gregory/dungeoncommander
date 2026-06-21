@@ -18,10 +18,7 @@ module DC.Types (
   EntityChildren(..),
   EntityChild(..),
   EntityInfo(..),
-  VerbosityLevel(..),
-  PrintOptions(..),
-  EntityChildManipulationOptions(..),
-  EntityOptions(..)
+  VerbosityLevel(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -50,27 +47,6 @@ data VerbosityLevel
   | Stats
   | All
   deriving (Show, Eq)
-
-data PrintOptions
-  = Self
-  | Children
-  | Parent
-
-data EntityChildManipulationOptions
-  = EntityChildType
-  | ParentId String
-
-data EntityOptions
-  = Create
-  | Delete
-  | Update Entity
-  | Add EntityChild
-  | Remove EntityChild
-  | AddTo EntityChildManipulationOptions
-  | RemoveFrom EntityChildManipulationOptions
-  | Print PrintOptions VerbosityLevel
-
-
 
 type CheckSuccess = Bool
 
