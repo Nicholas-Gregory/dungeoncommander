@@ -3,7 +3,6 @@
 module Main where
 
 import System.Environment (getArgs)
-import DC.Opts (command, cliArg, Option (..))
 import Network.Socket
 import qualified Data.ByteString.Char8 as C
 import Network.Socket.ByteString (sendAll, recv)
@@ -22,9 +21,8 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
-import DC.Actions (tooFewArgumentsError, parseCliArgs, getJson, initCurrentScene, initEntities)
+import DC.Actions (tooFewArgumentsError, getJson, initCurrentScene, initEntities)
 import Data.Traversable (traverse)
-import Data.IORef (newIORef)
 import DC.Types (Env(..), GameState (..))
 import DC.Error (AppM)
 
@@ -33,12 +31,9 @@ runApp = do
   sock <- liftIO $ socket AF_UNIX Stream defaultProtocol
   addrPath <- asks socketPath
   liftIO $ connect sock (SockAddrUnix addrPath)
-  args <- parseCliArgs
   json <- getJson sock
   initCurrentScene json
   initEntities json
-
-  
 
   return ()
 

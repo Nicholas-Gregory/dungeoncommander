@@ -80,7 +80,8 @@ library
         containers,
         mtl,
         network,
-        bytestring
+        bytestring,
+        optparse-applicative
 
     -- Directories containing source files.
     hs-source-dirs:   src

@@ -1,5 +1,4 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE LambdaCase #-}
 
 module DC.Actions (
   getAbilityScore,
@@ -14,7 +13,6 @@ module DC.Actions (
   addChild,
   removeChild,
   tooFewArgumentsError,
-  parseCliArgs,
   getJsonFromDaemon,
   getJsonFromInput,
   getJson,
@@ -34,7 +32,6 @@ import Control.Monad.Reader (asks, MonadTrans (lift))
 import qualified Data.Map as M
 import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin)
 import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError, err, AppM)
-import DC.Opts (Option, cliArg)
 import System.Environment (getArgs)
 import DC.Parse (Parser(runParser))
 import Control.Applicative (Alternative(empty))
@@ -181,15 +178,6 @@ removeChild t p c = err "removeChild"
 
 tooFewArgumentsError :: AppM Env ()
 tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few arguments"
-
-parseCliArgs :: AppM Env [Option]
-parseCliArgs = err "parseCliArgs" [] $ do
-  args <- liftIO getArgs
-  let result = map fst <$> traverse (runParser cliArg) args
-
-  case result of
-    Left e -> throwError e
-    Right opts -> return opts
 
 getJsonFromDaemon :: Socket -> AppM Env JsonValue
 getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do

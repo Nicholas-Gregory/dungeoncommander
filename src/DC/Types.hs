@@ -18,7 +18,11 @@ module DC.Types (
   EntityChildren(..),
   EntityChild(..),
   EntityInfo(..),
-  VerbosityLevel(..)
+  VerbosityLevel(..),
+  Command(..),
+  PrintOptions(..),
+  EntityChildManipulationOptions(..),
+  EntityOptions(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -47,6 +51,38 @@ data VerbosityLevel
   | Stats
   | All
   deriving (Show, Eq)
+
+data PrintOptions
+  = Self
+  | Children
+  | Parent
+
+data EntityChildManipulationOptions
+  = EntityChildType
+  | ParentId String
+
+data EntityOptions
+  = Create
+  | Delete
+  | Update Entity
+  | Add EntityChild
+  | Remove EntityChild
+  | AddTo EntityChildManipulationOptions
+  | RemoveFrom EntityChildManipulationOptions
+  | Print PrintOptions VerbosityLevel
+
+data Command
+  = SceneCommand EntityOptions
+  | ActorCommand EntityOptions
+  | ObjectCommand EntityOptions
+  | TrapCommand EntityOptions
+  | ItemCommand EntityOptions
+  | ArmorCommand EntityOptions
+  | WeaponCommand EntityOptions
+  | ContainerCommand EntityOptions
+  | MountCommand EntityOptions
+  | SpellCommand EntityOptions
+  | MoneyCommand EntityOptions
 
 type CheckSuccess = Bool
 
