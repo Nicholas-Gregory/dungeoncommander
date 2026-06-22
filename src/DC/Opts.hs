@@ -1,5 +1,8 @@
 module DC.Opts (
-
+ rootInfo,
+ Command(..),
+ SceneAction(..),
+ CreateScene(..)
 ) where
 
 import Options.Applicative
@@ -16,6 +19,7 @@ data Command
   | MountCommand MountAction
   | SpellCommand SpellAction
   | MoneyCommand MoneyAction
+  deriving (Show, Eq)
 
 data SceneAction
   = SceneCreate CreateScene
@@ -27,6 +31,8 @@ data SceneAction
   | SceneRemoveObject
   | SceneAddTo
   | SceneRemoveFrom
+  | SceneSelect SelectScene
+  deriving (Show, Eq)
 
 data ActorAction
   = ActorCreate
@@ -36,6 +42,10 @@ data ActorAction
   | ActorRemove
   | ActorAddTo
   | ActorRemoveFrom
+  deriving (Show, Eq)
+
+rootInfo :: ParserInfo Command
+rootInfo = info (helper <*> rootCommand) (progDesc "Manage game state for a Dungeons and Dragons 5e session using various commands")
 
 rootCommand :: Parser Command
 rootCommand = hsubparser
@@ -76,12 +86,24 @@ sceneAction = hsubparser
   <> command "add-object" (info (helper <*> addObjectScene)
     (progDesc "Add an Object to a Scene"))
   <> command "remove-actor" (info (helper <*> removeActorScene)
-    (progDesc "Remove an Actor from a Scene")))
+    (progDesc "Remove an Actor from a Scene"))
+  <> command "select" (info (helper <*> selectScene)
+    (progDesc "Select a scene")))
+
+data SelectScene = SelectScene
+  { selectSceneId :: String } deriving (Show, Eq)
+
+selectScene :: Parser SceneAction
+selectScene = SceneSelect <$> (SelectScene
+  <$> strOption
+    ( long "id"
+    <> metavar "SCENE-ID"
+    <> help "The ID of the Scene to select"))
 
 data RemoveActorScene = RemoveActorScene
   { removeActorSceneId :: Maybe String
   , removeActorActorId :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 removeActorScene :: Parser SceneAction
 removeActorScene = SceneRemoveActor <$> (RemoveActorScene
@@ -97,7 +119,7 @@ removeActorScene = SceneRemoveActor <$> (RemoveActorScene
 data AddObjectScene = AddObjectScene
   { addObjectSceneId :: Maybe String
   , addObjectObjectId :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 addObjectScene :: Parser SceneAction
 addObjectScene = SceneAddObject <$> (AddObjectScene
@@ -113,7 +135,7 @@ addObjectScene = SceneAddObject <$> (AddObjectScene
 data AddActorScene = AddActorScene
   { addActorSceneId :: Maybe String 
   , addActorActorId :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 addActorScene :: Parser SceneAction
 addActorScene = SceneAddActor <$> (AddActorScene
@@ -127,7 +149,7 @@ addActorScene = SceneAddActor <$> (AddActorScene
     <> help "The ID of the Actor to add to the Scene")))
 
 data DeleteScene = DeleteScene
-  { deleteSceneId :: Maybe String }
+  { deleteSceneId :: Maybe String } deriving (Show, Eq)
 
 deleteScene :: Parser SceneAction
 deleteScene = SceneDelete <$> (DeleteScene
@@ -137,18 +159,18 @@ deleteScene = SceneDelete <$> (DeleteScene
     <> help "The ID of the Scene to delete")))
 
 data CreateScene = CreateScene
-  { createSceneId :: Maybe String
+  { createSceneId :: String
   , createSceneName :: String
   , createSceneX :: Int
   , createSceneY :: Int
-  }
+  } deriving (Show, Eq)
 
 createScene :: Parser SceneAction
 createScene = SceneCreate <$> (CreateScene
-  <$> optional (strOption
+  <$> strOption
     ( long "id"
     <> metavar "ID"
-    <> help "The ID of the new Scene"))
+    <> help "The ID of the new Scene")
   <*> strOption
     ( long "name"
     <> short 'n'
@@ -168,7 +190,7 @@ data UpdateScene = UpdateScene
   , updateSceneName :: Maybe String
   , updateSceneX :: Maybe Int
   , updateSceneY :: Maybe Int
-  }
+  } deriving (Show, Eq)
 
 updateScene :: Parser SceneAction
 updateScene = SceneUpdate <$> (UpdateScene
@@ -210,7 +232,7 @@ data UpdateActor = UpdateActor
   , actorHitDice :: Maybe Int
   , actorAc :: Maybe Int
   , actorLevel :: Maybe Int
-  }
+  } deriving (Show, Eq)
 
 updateActor :: Parser ActorAction
 updateActor = ActorUpdate <$> (UpdateActor
@@ -278,6 +300,7 @@ data ObjectAction
   = ObjectCreate CreateObject
   | ObjectDelete DeleteObject
   | ObjectUpdate UpdateObject
+  deriving (Show, Eq)
 
 data CreateObject = CreateObject
   { createObjectId :: Maybe String
@@ -286,7 +309,7 @@ data CreateObject = CreateObject
   , createObjectMaxHp :: Int
   , createObjectX :: Int
   , createObjectY :: Int
-  }
+  } deriving (Show, Eq)
 
 createObject :: Parser ObjectAction
 createObject = ObjectCreate <$> (CreateObject
@@ -316,7 +339,7 @@ createObject = ObjectCreate <$> (CreateObject
     <> metavar "INTEGER"
     <> help "The Y coordinate of the new Object"))
 
-data DeleteObject = DeleteObject { deleteObjectId :: Maybe String }
+data DeleteObject = DeleteObject { deleteObjectId :: Maybe String } deriving (Show, Eq)
 
 deleteObject :: Parser ObjectAction
 deleteObject = ObjectDelete <$> (DeleteObject
@@ -333,7 +356,7 @@ data UpdateObject = UpdateObject
   , updateObjectCurrentHp :: Maybe Int
   , updateObjectX :: Maybe Int
   , updateObjectY :: Maybe Int
-  }
+  } deriving (Show, Eq)
 
 updateObject :: Parser ObjectAction
 updateObject = ObjectUpdate <$> (UpdateObject
@@ -381,6 +404,7 @@ data TrapAction
   = TrapCreate CreateTrap
   | TrapDelete DeleteTrap
   | TrapUpdate UpdateTrap
+  deriving (Show, Eq)
 
 data CreateTrap = CreateTrap
   { createTrapId :: Maybe String
@@ -391,7 +415,7 @@ data CreateTrap = CreateTrap
   , createTrapDamage :: String
   , createTrapX :: Int
   , createTrapY :: Int
-  }
+  } deriving (Show, Eq)
 
 createTrap :: Parser TrapAction
 createTrap = TrapCreate <$> (CreateTrap
@@ -414,7 +438,7 @@ createTrap = TrapCreate <$> (CreateTrap
 
   )
 
-data DeleteTrap = DeleteTrap { deleteTrapId :: Maybe String }
+data DeleteTrap = DeleteTrap { deleteTrapId :: Maybe String } deriving (Show, Eq)
 
 deleteTrap :: Parser TrapAction
 deleteTrap = TrapDelete <$> (DeleteTrap
@@ -430,7 +454,7 @@ data UpdateTrap = UpdateTrap
   , updateTrapDamage :: Maybe String
   , updateTrapX :: Maybe Int
   , updateTrapY :: Maybe Int
-  }
+  } deriving (Show, Eq)
 updateTrap :: Parser TrapAction
 updateTrap = TrapUpdate <$> (UpdateTrap
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Trap to update"))
@@ -453,13 +477,14 @@ data ItemAction
   = ItemCreate CreateItem
   | ItemDelete DeleteItem
   | ItemUpdate UpdateItem
+  deriving (Show, Eq)
 
 data CreateItem = CreateItem
   { createItemId :: Maybe String
   , createItemName :: String
   , createItemCost :: String
   , createItemWeight :: String
-  }
+  } deriving (Show, Eq)
 
 createItem :: Parser ItemAction
 createItem = ItemCreate <$> (CreateItem
@@ -468,7 +493,7 @@ createItem = ItemCreate <$> (CreateItem
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost of new Item")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight of new Item"))
 
-data DeleteItem = DeleteItem { deleteItemId :: Maybe String }
+data DeleteItem = DeleteItem { deleteItemId :: Maybe String } deriving (Show, Eq)
 
 deleteItem :: Parser ItemAction
 deleteItem = ItemDelete <$> (DeleteItem
@@ -482,7 +507,7 @@ data UpdateItem = UpdateItem
   , updateItemName :: Maybe String
   , updateItemCost :: Maybe String
   , updateItemWeight :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateItem :: Parser ItemAction
 updateItem = ItemUpdate <$> (UpdateItem
@@ -502,6 +527,7 @@ data ArmorAction
   = ArmorCreate CreateArmor
   | ArmorDelete DeleteArmor
   | ArmorUpdate UpdateArmor
+  deriving (Show, Eq)
 
 data CreateArmor = CreateArmor
   { createArmorId :: Maybe String
@@ -512,7 +538,7 @@ data CreateArmor = CreateArmor
   , createArmorStr :: Int
   , createArmorStealthDisadvantage :: Bool
   , createArmorType :: String
-  }
+  } deriving (Show, Eq)
 
 createArmor :: Parser ArmorAction
 createArmor = ArmorCreate <$> (CreateArmor
@@ -525,7 +551,7 @@ createArmor = ArmorCreate <$> (CreateArmor
   <*> switch ( long "stealth-disadvantage" <> help "Has stealth disadvantage")
   <*> strOption ( long "type" <> metavar "TYPE" <> help "Armor type"))
 
-data DeleteArmor = DeleteArmor { deleteArmorId :: Maybe String }
+data DeleteArmor = DeleteArmor { deleteArmorId :: Maybe String } deriving (Show, Eq)
 
 deleteArmor :: Parser ArmorAction
 deleteArmor = ArmorDelete <$> (DeleteArmor
@@ -543,7 +569,7 @@ data UpdateArmor = UpdateArmor
   , updateArmorStr :: Maybe Int
   , updateArmorStealthDisadvantage :: Maybe Bool
   , updateArmorType :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateArmor :: Parser ArmorAction
 updateArmor = ArmorUpdate <$> (UpdateArmor
@@ -567,6 +593,7 @@ data WeaponAction
   = WeaponCreate CreateWeapon
   | WeaponDelete DeleteWeapon
   | WeaponUpdate UpdateWeapon
+  deriving (Show, Eq)
 
 data CreateWeapon = CreateWeapon
   { createWeaponId :: Maybe String
@@ -576,7 +603,7 @@ data CreateWeapon = CreateWeapon
   , createWeaponDamage :: String
   , createWeaponProperties :: Maybe String
   , createWeaponWeapon :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 createWeapon :: Parser WeaponAction
 createWeapon = WeaponCreate <$> (CreateWeapon
@@ -588,7 +615,7 @@ createWeapon = WeaponCreate <$> (CreateWeapon
   <*> optional (strOption ( long "properties" <> metavar "PROPS" <> help "Properties list (comma separated)"))
   <*> optional (strOption ( long "weapon" <> metavar "WEAPON" <> help "Weapon identifier")))
 
-data DeleteWeapon = DeleteWeapon { deleteWeaponId :: Maybe String }
+data DeleteWeapon = DeleteWeapon { deleteWeaponId :: Maybe String } deriving (Show, Eq)
 
 deleteWeapon :: Parser WeaponAction
 deleteWeapon = WeaponDelete <$> (DeleteWeapon
@@ -605,7 +632,7 @@ data UpdateWeapon = UpdateWeapon
   , updateWeaponDamage :: Maybe String
   , updateWeaponProperties :: Maybe String
   , updateWeaponWeapon :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateWeapon :: Parser WeaponAction
 updateWeapon = WeaponUpdate <$> (UpdateWeapon
@@ -628,6 +655,7 @@ data ContainerAction
   = ContainerCreate CreateContainer
   | ContainerDelete DeleteContainer
   | ContainerUpdate UpdateContainer
+  deriving (Show, Eq)
 
 data CreateContainer = CreateContainer
   { createContainerId :: Maybe String
@@ -635,7 +663,7 @@ data CreateContainer = CreateContainer
   , createContainerCost :: String
   , createContainerWeight :: String
   , createContainerCapacity :: String
-  }
+  } deriving (Show, Eq)
 
 createContainer :: Parser ContainerAction
 createContainer = ContainerCreate <$> (CreateContainer
@@ -645,7 +673,7 @@ createContainer = ContainerCreate <$> (CreateContainer
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
   <*> strOption ( long "capacity" <> metavar "CAPACITY" <> help "Capacity"))
 
-data DeleteContainer = DeleteContainer { deleteContainerId :: Maybe String }
+data DeleteContainer = DeleteContainer { deleteContainerId :: Maybe String } deriving (Show, Eq)
 
 deleteContainer :: Parser ContainerAction
 deleteContainer = ContainerDelete <$> (DeleteContainer
@@ -660,7 +688,7 @@ data UpdateContainer = UpdateContainer
   , updateContainerCost :: Maybe String
   , updateContainerWeight :: Maybe String
   , updateContainerCapacity :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateContainer :: Parser ContainerAction
 updateContainer = ContainerUpdate <$> (UpdateContainer
@@ -681,13 +709,14 @@ data MountAction
   = MountCreate CreateMount
   | MountDelete DeleteMount
   | MountUpdate UpdateMount
+  deriving (Show, Eq)
 
 data CreateMount = CreateMount
   { createMountId :: Maybe String
   , createMountName :: String
   , createMountSpeed :: Int
   , createMountCarrying :: Int
-  }
+  } deriving (Show, Eq)
 
 createMount :: Parser MountAction
 createMount = MountCreate <$> (CreateMount
@@ -696,7 +725,7 @@ createMount = MountCreate <$> (CreateMount
   <*> option auto ( long "speed" <> metavar "INTEGER" <> help "Speed of Mount")
   <*> option auto ( long "carrying" <> metavar "INTEGER" <> help "Carrying capacity"))
 
-data DeleteMount = DeleteMount { deleteMountId :: Maybe String }
+data DeleteMount = DeleteMount { deleteMountId :: Maybe String } deriving (Show, Eq)
 
 deleteMount :: Parser MountAction
 deleteMount = MountDelete <$> (DeleteMount
@@ -710,7 +739,7 @@ data UpdateMount = UpdateMount
   , updateMountName :: Maybe String
   , updateMountSpeed :: Maybe Int
   , updateMountCarrying :: Maybe Int
-  }
+  } deriving (Show, Eq)
 
 updateMount :: Parser MountAction
 updateMount = MountUpdate <$> (UpdateMount
@@ -730,6 +759,7 @@ data SpellAction
   = SpellCreate CreateSpell
   | SpellDelete DeleteSpell
   | SpellUpdate UpdateSpell
+  deriving (Show, Eq)
 
 data CreateSpell = CreateSpell
   { createSpellId :: Maybe String
@@ -744,7 +774,7 @@ data CreateSpell = CreateSpell
   , createSpellAoe :: String
   , createSpellSave :: String
   , createSpellAttack :: String
-  }
+  } deriving (Show, Eq)
 
 createSpell :: Parser SpellAction
 createSpell = SpellCreate <$> (CreateSpell
@@ -761,7 +791,7 @@ createSpell = SpellCreate <$> (CreateSpell
   <*> strOption ( long "save" <> metavar "SAVE" <> help "Save type")
   <*> strOption ( long "attack" <> metavar "ATTACK" <> help "Attack type"))
 
-data DeleteSpell = DeleteSpell { deleteSpellId :: Maybe String }
+data DeleteSpell = DeleteSpell { deleteSpellId :: Maybe String } deriving (Show, Eq)
 
 deleteSpell :: Parser SpellAction
 deleteSpell = SpellDelete <$> (DeleteSpell
@@ -783,7 +813,7 @@ data UpdateSpell = UpdateSpell
   , updateSpellAoe :: Maybe String
   , updateSpellSave :: Maybe String
   , updateSpellAttack :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateSpell :: Parser SpellAction
 updateSpell = SpellUpdate <$> (UpdateSpell
@@ -811,12 +841,13 @@ data MoneyAction
   = MoneyCreate CreateMoney
   | MoneyDelete DeleteMoney
   | MoneyUpdate UpdateMoney
+  deriving (Show, Eq)
 
 data CreateMoney = CreateMoney
   { createMoneyId :: Maybe String
   , createMoneyName :: String
   , createMoneyAmount :: String
-  }
+  } deriving (Show, Eq)
 
 createMoney :: Parser MoneyAction
 createMoney = MoneyCreate <$> (CreateMoney
@@ -824,7 +855,7 @@ createMoney = MoneyCreate <$> (CreateMoney
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of money entity")
   <*> strOption ( long "amount" <> metavar "AMOUNT" <> help "Amount string"))
 
-data DeleteMoney = DeleteMoney { deleteMoneyId :: Maybe String }
+data DeleteMoney = DeleteMoney { deleteMoneyId :: Maybe String } deriving (Show, Eq)
 
 deleteMoney :: Parser MoneyAction
 deleteMoney = MoneyDelete <$> (DeleteMoney
@@ -837,7 +868,7 @@ data UpdateMoney = UpdateMoney
   { updateMoneyId :: Maybe String
   , updateMoneyName :: Maybe String
   , updateMoneyAmount :: Maybe String
-  }
+  } deriving (Show, Eq)
 
 updateMoney :: Parser MoneyAction
 updateMoney = MoneyUpdate <$> (UpdateMoney

@@ -125,7 +125,8 @@ executable dc
         random,
         containers,
         mtl,
-        transformers
+        transformers,
+        optparse-applicative
     default-language: Haskell2010
 
 test-suite dungeoncommander-test

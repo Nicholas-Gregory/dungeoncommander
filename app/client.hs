@@ -21,10 +21,12 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
-import DC.Actions (tooFewArgumentsError, getJson, initCurrentScene, initEntities)
+import DC.Actions (tooFewArgumentsError, getJson, initCurrentScene, initEntities, saveEntity)
 import Data.Traversable (traverse)
-import DC.Types (Env(..), GameState (..))
+import DC.Types (Env(..), GameState (..), Entity (Scene, dimensions, entityInfo), EntityInfo (..), EntityChildren (EntityChildren))
 import DC.Error (AppM)
+import Options.Applicative
+import DC.Opts (rootInfo, Command (SceneCommand), SceneAction (SceneCreate), CreateScene (CreateScene))
 
 runApp :: AppM Env ()
 runApp = do
@@ -34,6 +36,14 @@ runApp = do
   json <- getJson sock
   initCurrentScene json
   initEntities json
+  opts <- liftIO $ execParser rootInfo
+
+  case opts of
+    SceneCommand (SceneCreate (CreateScene id eName x y)) -> do
+      let info = EntityInfo { name = eName, children = EntityChildren [] }
+      let entity = Scene { entityInfo = info, dimensions = (x, y) }
+
+      saveEntity id entity
 
   return ()
 
