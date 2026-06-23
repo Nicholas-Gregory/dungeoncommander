@@ -205,10 +205,15 @@ saveJsonToDaemon sock = err "saveJsonToDaemon" [] $ do
   r <- liftIO $ timeout 3000000 $ sendAll sock
     $ C.pack $ "{ \"action\": \"save\", \"payload\": "
     <> writeJsonValue (toJson entities) <> "}"
+  sr <- liftIO $ timeout 3000000 $ recv sock 4096
 
   case r of
     Nothing -> throwBaseError $ SocketError "Socket timed out"
-    Just _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Saved session state to disk"
+    Just _ -> case sr of
+      Nothing -> throwBaseError $ SocketError "Socket timed out"
+      Just sr' -> case C.unpack sr' of
+        "SUCCESS" -> liftIO $ hPutStrLn stderr "[SYSTEM] Saved session state to disk"
+        _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Daemon encountered an error (check logs)"
 
 
 getJsonFromDaemon :: Socket -> AppM Env JsonValue

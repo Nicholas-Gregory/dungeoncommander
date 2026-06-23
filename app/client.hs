@@ -32,7 +32,6 @@ runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
   addrPath <- asks socketPath
   json <- getJson sock
-  initCurrentScene json
   initEntities json
 
   case opts of

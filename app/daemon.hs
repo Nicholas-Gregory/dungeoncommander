@@ -12,12 +12,16 @@ import DC.Parse (Parser(runParser))
 import System.Directory (doesFileExist)
 import Control.Applicative (Alternative(empty))
 
+initialJson :: M.Map String JsonValue
+initialJson = M.fromList [("entities", toJson (M.empty :: M.Map String JsonValue))]
+
 performAction :: Socket -> C.ByteString -> String -> JsonValue -> IO ()
 performAction conn _ "get" (JsonString "all") = do
   contents <- C.readFile "db.json"
   sendAll conn contents
-performAction conn msg "save" (JsonObject _) = do
-  C.writeFile "db.json" msg
+performAction conn msg "save" entities = do
+  let newMap = M.insert "entities" entities initialJson
+  C.writeFile "db.json" $ C.pack $ writeJsonValue $ JsonObject newMap
   -- print "here"
   sendAll conn $ C.pack "SUCCESS"
 performAction _ _ _ _ = hPutStrLn stderr "unkown action"
