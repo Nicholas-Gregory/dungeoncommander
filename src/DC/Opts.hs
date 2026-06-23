@@ -3,7 +3,8 @@ module DC.Opts (
  Command(..),
  SceneAction(..),
  CreateScene(..),
- RollOptions(..)
+ RollOptions(..),
+ RootOptions(..)
 ) where
 
 import Options.Applicative
@@ -53,48 +54,58 @@ data ActorAction
   | ActorRemoveFrom
   deriving (Show, Eq)
 
-rootInfo :: ParserInfo Command
-rootInfo = info (helper <*> rootCommand) (progDesc "Manage game state for a Dungeons and Dragons 5e session using various commands")
+rootInfo :: ParserInfo RootOptions
+rootInfo = info (helper <*> rootParser) (progDesc "Manage game state for a Dungeons and Dragons 5e session using various commands")
 
-rootCommand :: Parser Command
-rootCommand = hsubparser
-  ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
-    (progDesc "Select a Scene, or manage Scenes"))
-  <> command "actor" (info (helper <*> (ActorCommand <$> actorAction))
-    (progDesc "Select an Actor, or manage Actors"))
-  <> command "object" (info (helper <*> (ObjectCommand <$> objectAction))
-    (progDesc "Select an Object, or manage Objects"))
-  <> command "trap" (info (helper <*> (TrapCommand <$> trapAction))
-    (progDesc "Select a Trap, or manage Traps"))
-  <> command "item" (info (helper <*> (ItemCommand <$> itemAction))
-    (progDesc "Select an Item, or manage Items"))
-  <> command "armor" (info (helper <*> (ArmorCommand <$> armorAction))
-    (progDesc "Select Armor, or manage Armor"))
-  <> command "weapon" (info (helper <*> (WeaponCommand <$> weaponAction))
-    (progDesc "Select a Weapon, or manage Weapons"))
-  <> command "container" (info (helper <*> (ContainerCommand <$> containerAction))
-    (progDesc "Select a Container, or manage Containers"))
-  <> command "mount" (info (helper <*> (MountCommand <$> mountAction))
-    (progDesc "Select a Mount, or manage Mounts"))
-  <> command "spell" (info (helper <*> (SpellCommand <$> spellAction))
-    (progDesc "Select a Spell, or manage Spells"))
-  <> command "money" (info (helper <*> (MoneyCommand <$> moneyAction))
-    (progDesc "Select Money, or manage Money"))
-  <> command "cha" (info (helper <*> (ChaCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform a Charisma Check"))
-  <> command "int" (info (helper <*> (IntCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform an Intelligence Check"))
-  <> command "con" (info (helper <*> (ConCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform a Constitution Check"))
-  <> command "str" (info (helper <*> (StrCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform a Strength Check"))
-  <> command "dex" (info (helper <*> (DexCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform a Dexterity Check"))
-  <> command "wis" (info (helper <*> (WisCommand <$> abilityCheck))
-    (progDesc "Have an Actor perform a Wisdom Check"))
-  <> command "roll" (info (helper <*> (RollCommand <$> rollCommand))
-    (progDesc "Perform the proceeding action chain, with computed rolls or provided rolls. Can also use to perform one-off dice rolls"))
-  )
+data RootOptions = RootOptions
+  { save :: Bool
+  , rootCommand :: Maybe Command
+  }
+
+rootParser :: Parser RootOptions
+rootParser = RootOptions
+  <$> switch
+    (long "save"
+    <> short 's'
+    <> help "Use this flag to commit the result to disk")
+  <*> optional (hsubparser
+    ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
+      (progDesc "Select a Scene, or manage Scenes"))
+    <> command "actor" (info (helper <*> (ActorCommand <$> actorAction))
+      (progDesc "Select an Actor, or manage Actors"))
+    <> command "object" (info (helper <*> (ObjectCommand <$> objectAction))
+      (progDesc "Select an Object, or manage Objects"))
+    <> command "trap" (info (helper <*> (TrapCommand <$> trapAction))
+      (progDesc "Select a Trap, or manage Traps"))
+    <> command "item" (info (helper <*> (ItemCommand <$> itemAction))
+      (progDesc "Select an Item, or manage Items"))
+    <> command "armor" (info (helper <*> (ArmorCommand <$> armorAction))
+      (progDesc "Select Armor, or manage Armor"))
+    <> command "weapon" (info (helper <*> (WeaponCommand <$> weaponAction))
+      (progDesc "Select a Weapon, or manage Weapons"))
+    <> command "container" (info (helper <*> (ContainerCommand <$> containerAction))
+      (progDesc "Select a Container, or manage Containers"))
+    <> command "mount" (info (helper <*> (MountCommand <$> mountAction))
+      (progDesc "Select a Mount, or manage Mounts"))
+    <> command "spell" (info (helper <*> (SpellCommand <$> spellAction))
+      (progDesc "Select a Spell, or manage Spells"))
+    <> command "money" (info (helper <*> (MoneyCommand <$> moneyAction))
+      (progDesc "Select Money, or manage Money"))
+    <> command "cha" (info (helper <*> (ChaCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform a Charisma Check"))
+    <> command "int" (info (helper <*> (IntCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform an Intelligence Check"))
+    <> command "con" (info (helper <*> (ConCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform a Constitution Check"))
+    <> command "str" (info (helper <*> (StrCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform a Strength Check"))
+    <> command "dex" (info (helper <*> (DexCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform a Dexterity Check"))
+    <> command "wis" (info (helper <*> (WisCommand <$> abilityCheck))
+      (progDesc "Have an Actor perform a Wisdom Check"))
+    <> command "roll" (info (helper <*> (RollCommand <$> rollCommand))
+      (progDesc "Perform the proceeding action chain, with computed rolls or provided rolls. Can also use to perform one-off dice rolls"))
+    ))
 
 data RollOptions = RollOptions
   { rollExpression :: Maybe String

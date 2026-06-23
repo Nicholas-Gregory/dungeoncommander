@@ -21,7 +21,10 @@ module DC.Actions (
   setCurrentScene,
   getEntityById,
   printScene,
-  diceRollResult
+  diceRollResult,
+  getEntities,
+  saveJsonToDaemon,
+  refreshSocketConn
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -40,9 +43,10 @@ import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Data.ByteString.Char8 as C
-import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap)
+import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap, writeJsonValue, ToJson (toJson))
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
+import qualified Data.Map as M
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -179,6 +183,33 @@ removeChild t p c = err "removeChild"
 
 tooFewArgumentsError :: AppM Env ()
 tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few arguments"
+
+getEntities :: AppM Env (M.Map String Entity)
+getEntities = err "getEntities" [] $ do
+  stateRef <- asks state
+  state <- liftIO $ readIORef stateRef
+
+  return $ entities state
+
+refreshSocketConn :: AppM Env Socket
+refreshSocketConn = do
+  sPath <- asks socketPath
+  sock <- liftIO $ socket AF_UNIX Stream defaultProtocol
+  liftIO $ connect sock (SockAddrUnix sPath)
+
+  return sock
+
+saveJsonToDaemon :: Socket -> AppM Env ()
+saveJsonToDaemon sock = err "saveJsonToDaemon" [] $ do
+  entities <- getEntities
+  r <- liftIO $ timeout 3000000 $ sendAll sock
+    $ C.pack $ "{ \"action\": \"save\", \"payload\": "
+    <> writeJsonValue (toJson entities) <> "}"
+
+  case r of
+    Nothing -> throwBaseError $ SocketError "Socket timed out"
+    Just _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Saved session state to disk"
+
 
 getJsonFromDaemon :: Socket -> AppM Env JsonValue
 getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do

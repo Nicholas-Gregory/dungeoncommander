@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module DC.Types (
   CheckSuccess,
@@ -540,6 +541,10 @@ instance IsJson WeaponProficiencies where
 instance ToJson WeaponProficiencies where
   toJson :: WeaponProficiencies -> JsonValue
   toJson (WeaponProficiencies xs) = JsonArray $ map toJson xs
+
+instance ToJson (M.Map String Entity) where
+  toJson :: M.Map String Entity -> JsonValue
+  toJson m = JsonObject $ M.map toJson m
 
 instance ToJson Entity where
   toJson :: Entity -> JsonValue

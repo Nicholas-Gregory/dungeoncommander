@@ -8,7 +8,7 @@ import qualified Data.ByteString.Char8 as C
 import Network.Socket.ByteString (sendAll, recv)
 import Control.Applicative (optional)
 import System.IO (hReady, stdin, hIsTerminalDevice, hPutStrLn, stderr)
-import Control.Monad (join)
+import Control.Monad (join, when)
 import DC.Parse (Parser(runParser))
 import DC.Json (jsonObject, writeJsonValue, JsonValue (..), FromJson (fromJson), getField, JsonObjectMap, ToJson (toJson))
 import System.Random (getStdGen, mkStdGen)
@@ -26,32 +26,33 @@ import Data.Traversable (traverse)
 import DC.Types (Env(..), GameState (..), Entity (Scene, dimensions, entityInfo), EntityInfo (..), EntityChildren (EntityChildren))
 import DC.Error (AppM)
 import Options.Applicative
-import DC.Opts (rootInfo, Command (..), SceneAction (SceneCreate), CreateScene (CreateScene), RollOptions(..))
+import DC.Opts (rootInfo, Command (..), SceneAction (SceneCreate), CreateScene (CreateScene), RollOptions(..), RootOptions(..))
 
-runApp :: AppM Env ()
-runApp = do
-  sock <- liftIO $ socket AF_UNIX Stream defaultProtocol
+runApp :: RootOptions -> Socket -> AppM Env ()
+runApp opts sock = do
   addrPath <- asks socketPath
-  liftIO $ connect sock (SockAddrUnix addrPath)
   json <- getJson sock
   initCurrentScene json
   initEntities json
-  opts <- liftIO $ execParser rootInfo
 
   case opts of
-    SceneCommand (SceneCreate (CreateScene id eName x y)) -> do
+    RootOptions _ (Just (SceneCommand (SceneCreate (CreateScene id eName x y)))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
       saveEntity id entity
-    RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False) -> do
+    RootOptions _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 
-  return ()
+  when (save opts) $ do
+    sock <- refreshSocketConn
+    saveJsonToDaemon sock
 
 main :: IO ()
 main = withSocketsDo $ do
   gen <- getStdGen
+  opts <- execParser rootInfo
+  sock <- socket AF_UNIX Stream defaultProtocol
   let initState = GameState
         { currentScene = ""
         , entities = M.empty
@@ -64,14 +65,11 @@ main = withSocketsDo $ do
         , state = stateRef
         , gen = gen
         }
-  
-  result <- runExceptT (runReaderT runApp env)
+  connect sock (SockAddrUnix $ socketPath env)
+  result <- runExceptT (runReaderT (runApp opts sock) env)
 
   case result of
     Left e -> print e
-    Right () -> do
-      c <- readIORef $ state env
-
-      print "did it"-- $ entities c
+    Right () -> return ()
 
   return ()
