@@ -2,13 +2,16 @@ module DC.Opts (
  rootInfo,
  Command(..),
  SceneAction(..),
- CreateScene(..)
+ CreateScene(..),
+ RollOptions(..)
 ) where
 
 import Options.Applicative
+import DC.Types (Ability)
 
 data Command
-  = SceneCommand SceneAction
+  = RollCommand RollOptions
+  | SceneCommand SceneAction
   | ActorCommand ActorAction
   | ObjectCommand ObjectAction
   | TrapCommand TrapAction
@@ -19,6 +22,12 @@ data Command
   | MountCommand MountAction
   | SpellCommand SpellAction
   | MoneyCommand MoneyAction
+  | ChaCommand AbilityCheck
+  | IntCommand AbilityCheck
+  | ConCommand AbilityCheck
+  | StrCommand AbilityCheck
+  | DexCommand AbilityCheck
+  | WisCommand AbilityCheck
   deriving (Show, Eq)
 
 data SceneAction
@@ -71,7 +80,92 @@ rootCommand = hsubparser
     (progDesc "Select a Spell, or manage Spells"))
   <> command "money" (info (helper <*> (MoneyCommand <$> moneyAction))
     (progDesc "Select Money, or manage Money"))
+  <> command "cha" (info (helper <*> (ChaCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform a Charisma Check"))
+  <> command "int" (info (helper <*> (IntCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform an Intelligence Check"))
+  <> command "con" (info (helper <*> (ConCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform a Constitution Check"))
+  <> command "str" (info (helper <*> (StrCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform a Strength Check"))
+  <> command "dex" (info (helper <*> (DexCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform a Dexterity Check"))
+  <> command "wis" (info (helper <*> (WisCommand <$> abilityCheck))
+    (progDesc "Have an Actor perform a Wisdom Check"))
+  <> command "roll" (info (helper <*> (RollCommand <$> rollCommand))
+    (progDesc "Perform the proceeding action chain, with computed rolls or provided rolls. Can also use to perform one-off dice rolls"))
   )
+
+data RollOptions = RollOptions
+  { rollExpression :: Maybe String
+  , rollDiceNumber :: Maybe Int
+  , rollDiceType :: Maybe Int
+  , rollAttack :: Maybe Int
+  , rollDamage :: Maybe Int
+  , advantage :: Bool
+  , disadvantage :: Bool
+  } deriving (Show, Eq)
+
+rollCommand :: Parser RollOptions
+rollCommand = RollOptions
+  <$> optional (strOption
+    (long "expression"
+    <> short 'e'
+    <> metavar "DICE"
+    <> help "Input an entire standard TTRPG dice expression string to have the engine roll the specified dice and display the result"))
+  <*> optional (option auto
+    (long "number"
+    <> short 'n'
+    <> metavar "INTEGER"
+    <> help "Specify the number of dice to roll"))
+  <*> optional (option auto
+    (long "type"
+    <> short 't'
+    <> metavar "INTEGER"
+    <> help "Specify the type of dice to roll"))
+  <*> optional (option auto 
+    (long "attack"
+    <> short 'a'
+    <> metavar "INTEGER"
+    <> help "Specify the result of an Attack Roll. The engine computes the preceeding chain with this result."))
+  <*> optional (option auto
+    (long "damage"
+    <> short 'd'
+    <> metavar "INTEGER"
+    <> help "Specify the result of a Damage Roll. The engine computes the preceeding chain with this result."))
+  <*> switch
+    (long "advantage"
+    <> help "Use this flag to compute the roll with advantage")
+  <*> switch
+    (long "disadvantage"
+    <> help "Use this flag to compute the roll with disadvantage")
+
+data AbilityCheck = AbilityCheck
+  { checkDc :: Int,
+    contested :: Maybe String,
+    checkActor :: String,
+    checkSave :: Bool
+  } deriving (Show, Eq)
+
+abilityCheck :: Parser AbilityCheck
+abilityCheck = AbilityCheck
+  <$> option auto
+    ( long "dc"
+    <> metavar "INTEGER"
+    <> help "The difficulty class of the ability check")
+  <*> optional (strOption
+    (long "contested"
+    <> metavar "ACTOR"
+    <> help "The ID of the Actor the contested check is with"))
+  <*> strOption
+    (long "actor"
+    <> short 'a'
+    <> metavar "ACTOR"
+    <> help "The Actor performing the ability check")
+  <*> switch
+    (long "saving-throw"
+    <> short 's'
+    <> help "Include this switch if the check is a saving throw")
 
 sceneAction :: Parser SceneAction
 sceneAction = hsubparser
@@ -86,9 +180,7 @@ sceneAction = hsubparser
   <> command "add-object" (info (helper <*> addObjectScene)
     (progDesc "Add an Object to a Scene"))
   <> command "remove-actor" (info (helper <*> removeActorScene)
-    (progDesc "Remove an Actor from a Scene"))
-  <> command "select" (info (helper <*> selectScene)
-    (progDesc "Select a scene")))
+    (progDesc "Remove an Actor from a Scene")))
 
 data SelectScene = SelectScene
   { selectSceneId :: String } deriving (Show, Eq)

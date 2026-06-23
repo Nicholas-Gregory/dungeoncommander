@@ -21,12 +21,12 @@ import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
-import DC.Actions (tooFewArgumentsError, getJson, initCurrentScene, initEntities, saveEntity)
+import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types (Env(..), GameState (..), Entity (Scene, dimensions, entityInfo), EntityInfo (..), EntityChildren (EntityChildren))
 import DC.Error (AppM)
 import Options.Applicative
-import DC.Opts (rootInfo, Command (SceneCommand), SceneAction (SceneCreate), CreateScene (CreateScene))
+import DC.Opts (rootInfo, Command (..), SceneAction (SceneCreate), CreateScene (CreateScene), RollOptions(..))
 
 runApp :: AppM Env ()
 runApp = do
@@ -44,6 +44,8 @@ runApp = do
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
       saveEntity id entity
+    RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False) -> do
+      diceRollResult expression
 
   return ()
 
@@ -53,7 +55,6 @@ main = withSocketsDo $ do
   let initState = GameState
         { currentScene = ""
         , entities = M.empty
-        , gen = gen
         , commits = []
         }
   stateRef <- newIORef initState
@@ -61,6 +62,7 @@ main = withSocketsDo $ do
         { socketPath = "/tmp/dc.sock"
         , dbPath = "db.json"
         , state = stateRef
+        , gen = gen
         }
   
   result <- runExceptT (runReaderT runApp env)
@@ -70,6 +72,6 @@ main = withSocketsDo $ do
     Right () -> do
       c <- readIORef $ state env
 
-      print $ entities c
+      print "did it"-- $ entities c
 
   return ()

@@ -32,7 +32,6 @@ import DC.Error
 data GameState = GameState 
   { currentScene :: String,
     entities :: M.Map String Entity
-  , gen :: StdGen
   , commits :: [Entity]
   }
 
@@ -40,6 +39,7 @@ data Env = Env
   { socketPath :: FilePath
   , dbPath :: FilePath
   , state :: IORef GameState
+  , gen :: StdGen
   }
 
 data VerbosityLevel

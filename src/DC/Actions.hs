@@ -20,11 +20,12 @@ module DC.Actions (
   initEntities,
   setCurrentScene,
   getEntityById,
-  printScene
+  printScene,
+  diceRollResult
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
-import DC.Dice (rollDice)
+import DC.Dice (rollDice, processExpression)
 import System.Random (StdGen, getStdGen)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef', readIORef)
@@ -136,7 +137,7 @@ saveEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", s
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
     let newEntities = M.insert k e (entities st)
-    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
+    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st}, ())
 
 addChild :: EntityChildType -> String -> String -> AppM Env ()
 addChild t p c = err "addChild"
@@ -155,7 +156,7 @@ addChild t p c = err "addChild"
                    EntityChildren xs -> EntityChildren (EntityChild { childType = t, childId = c } : xs)
              in parent { entityInfo = oldInfo { children = newChildren } }
           ) p (entities st)
-    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st, gen=gen st}, ())
+    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st}, ())
 
 removeChild :: EntityChildType -> String -> String -> AppM Env ()
 removeChild t p c = err "removeChild"
@@ -277,3 +278,14 @@ printScene v eid = err "printScene"
       Name -> liftIO $ hPutStrLn stderr vNameString
       Stats -> liftIO $ hPutStrLn stderr vStatsString
       All -> liftIO $ hPutStrLn stderr vAllString
+
+diceRollResult :: String -> AppM Env ()
+diceRollResult expression = err "diceRollResult" [ ("expression", show expression ) ] $ do
+  gen <- asks gen
+  
+  --TODO: stdout roll result action to pipe to next command in chain
+  case processExpression gen expression of
+    Left e -> throwError e
+    Right r -> liftIO $ hPutStrLn stderr 
+      $ "[ROLL] dice-expression: " <> expression
+      <> ". Result: " <> show r

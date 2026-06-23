@@ -7,7 +7,7 @@ import qualified Data.ByteString.Char8 as C
 import System.IO (readFile, withFile, IOMode (ReadWriteMode), hGetContents, hPutStrLn)
 import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
-import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject, getField, writeJsonValue)
+import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject, getField, writeJsonValue, ToJson (toJson))
 import DC.Parse (Parser(runParser))
 import System.Directory (doesFileExist)
 import Control.Applicative (Alternative(empty))

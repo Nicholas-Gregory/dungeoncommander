@@ -19,7 +19,7 @@ module DC.Json (
 ) where
 import DC.Parse (Parser (runParser), item, char, sat, string, whitespace, number, space)
 import Control.Applicative (Alternative((<|>), many, some), optional)
-import qualified Data.Map as M (Map, fromList, toList, lookup)
+import qualified Data.Map as M
 import Data.Maybe (isNothing)
 import Data.Foldable (foldl')
 import DC.Error (AppError, ErrorDetail (..), newBaseError)
@@ -171,6 +171,10 @@ instance ToJson (Int, Int) where
 instance ToJson (String, String) where
   toJson :: (String, String) -> JsonValue
   toJson (a, b) = JsonArray [JsonString a, JsonString b]
+
+instance ToJson (M.Map String JsonValue) where
+  toJson :: M.Map String JsonValue -> JsonValue
+  toJson = JsonObject
 
 class IsJson a where
   fromValue :: JsonValue -> Either AppError a
