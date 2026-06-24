@@ -576,7 +576,8 @@ createActor = ActorCreate <$> (CreateActor
     <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match in quotes, lowercase.")))
 
 data UpdateActor = UpdateActor
-  { actorName :: Maybe String
+  { updateActorId :: String
+  , actorName :: Maybe String
   , actorX :: Maybe Int
   , actorY :: Maybe Int
   , actorCurrentHp :: Maybe Int
@@ -590,11 +591,17 @@ data UpdateActor = UpdateActor
   , actorHitDice :: Maybe String
   , actorAc :: Maybe Int
   , actorLevel :: Maybe Int
+  , updateActorSaveProficiencies :: [Either AppError Ability]
+  , updateActorWeaponProficiencies :: [Either AppError WeaponProficiency]
   } deriving (Show, Eq)
 
 updateActor :: Parser ActorAction
 updateActor = ActorUpdate <$> (UpdateActor
-  <$> optional (strOption
+  <$> strOption
+    (long "id"
+    <> metavar "ACTOR-ID"
+    <> help "The ID of the actor to update")
+  <*> optional (strOption
     ( long "name"
     <> short 'n'
     <> metavar "NAME"
@@ -651,7 +658,17 @@ updateActor = ActorUpdate <$> (UpdateActor
     ( long "level"
     <> short 'l'
     <> metavar "INTEGER"
-    <> help "The new Level of the Actor")))
+    <> help "The new Level of the Actor"))
+    <*> many ((\s -> fromValue (JsonString s) :: Either AppError Ability) <$> strOption
+    (long "save-proficiency"
+    <> long "sp"
+    <> metavar "ABILITY"
+    <> help "Three-letter ability score identifier (cha, int, wis, dex, str, con). Can be used multiple times"))
+  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProficiency) <$> strOption
+    (long "weapon-proficiency"
+    <> long "wp"
+    <> metavar "WEAPON-PROFICIENCY"
+    <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match in quotes, lowercase.")))
 
 -- Object
 data ObjectAction
