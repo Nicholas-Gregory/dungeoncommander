@@ -19,7 +19,9 @@ module DC.Types (
   EntityChildren(..),
   EntityChild(..),
   EntityInfo(..),
-  VerbosityLevel(..)
+  VerbosityLevel(..),
+  WeaponProperty(..),
+  WeaponProperties(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -29,6 +31,8 @@ import Control.Monad.Trans
 import Data.IORef
 import Control.Monad.Reader
 import DC.Error
+import DC.Parse
+import Control.Applicative (Alternative((<|>)), optional)
 
 data GameState = GameState 
   { currentScene :: String,
@@ -136,6 +140,81 @@ data Weapon =
   MartialMelee MartialMelee |
   MartialRanged MartialRanged
   deriving (Show, Eq)
+
+data WeaponProperty 
+  = Ammunition
+  | Finesse
+  | Heavy
+  | Light
+  | Loading
+  | Range (Int, Int)
+  | Reach
+  | Special
+  | Thrown
+  | TwoHanded
+  | Versatile Int
+  deriving (Show, Eq)
+
+newtype WeaponProperties = WeaponProperties [WeaponProperty] deriving (Show, Eq)
+
+instance ToJson WeaponProperty where
+  toJson :: WeaponProperty -> JsonValue
+  toJson Ammunition = JsonString "ammunition"
+  toJson Finesse = JsonString "finesse"
+  toJson Heavy = JsonString "heavy"
+  toJson Light = JsonString "light"
+  toJson Loading = JsonString "loading"
+  toJson (Range (normal, long)) = JsonString $ "range (" <> show normal <> ", " <> show long <> ")"
+  toJson Reach = JsonString "reach"
+  toJson Special = JsonString "special"
+  toJson Thrown = JsonString "thrown"
+  toJson TwoHanded = JsonString "two-handed"
+  toJson (Versatile vDamage) = JsonString $ "versatile (" <> show vDamage <> ")"
+
+instance ToJson WeaponProperties where
+  toJson :: WeaponProperties -> JsonValue
+  toJson (WeaponProperties a) = JsonArray $ map toJson a
+
+propertyParser :: Parser WeaponProperty
+propertyParser = Ammunition <$ string "ammunition"
+  <|> (Finesse <$ string "finesse")
+  <|> (Heavy <$ string "heavy")
+  <|> (Light <$ string "light")
+  <|> (Loading <$ string "loading")
+  <|> ((\_ _ _ n _ _ l _ _ -> Range (n, l))
+    <$> string "range" 
+    <*> space 
+    <*> char '('
+    <*> number
+    <*> char ','
+    <*> optional space
+    <*> number
+    <*> char ')'
+    <*> optional space)
+  <|> (Reach <$ string "reach")
+  <|> (Special <$ string "special")
+  <|> (Thrown <$ string "thrown")
+  <|> (TwoHanded <$ string "two-handed")
+  <|> ((\_ _ _ d _ _ -> Versatile d)
+    <$> string "versatile"
+    <*> space
+    <*> char '('
+    <*> number
+    <*> char ')'
+    <*> optional space)
+
+instance IsJson WeaponProperty where
+  fromValue :: JsonValue -> Either AppError WeaponProperty
+  fromValue (JsonString s) = case runParser propertyParser s of
+    Left e -> Left e
+    Right (p, "") -> Right p
+    _ -> Left $ newBaseError $ ParseError $ "Error parsing weapon property string: " <> show s
+  fromValue v = Left $ newBaseError $ OtherError $ "Expected JSON string for fromValue, found: " <> show v
+
+instance IsJson WeaponProperties where
+  fromValue :: JsonValue -> Either AppError WeaponProperties
+  fromValue (JsonArray a) = WeaponProperties <$> traverse (fromValue :: JsonValue -> Either AppError WeaponProperty) a
+  fromValue v = Left $ newBaseError $ OtherError $ "Expected JSON array for fromJson, found: " <> show v
 
 weaponNameTable :: [(Weapon, String)]
 weaponNameTable = [ (SimpleMelee Club, "club")
@@ -400,7 +479,7 @@ data Entity =
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
     damage :: (String, String),
-    properties :: [String],
+    properties :: WeaponProperties,
     weapon :: Weapon
   } |
   Container {

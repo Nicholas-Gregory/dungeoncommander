@@ -575,7 +575,9 @@ printWeapon v eid = err "printWeapon"
         vStatsString = vNameString
           <> ", ItemInfo: " <> iiJson
           <> ", Damage: (" <> d1 <> ", " <> d2 <> ")"
-          <> ", Properties: " <> foldl' (++) "" (map (++ ", ") props)
+          <> ", Properties: " <> foldl' (++) "" (map (\p -> case toJson p of 
+            JsonString s -> s
+            _ -> "") (case props of WeaponProperties a -> a))
           <> ", Weapon: " <> show w
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 

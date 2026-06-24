@@ -678,7 +678,7 @@ data ObjectAction
   deriving (Show, Eq)
 
 data CreateObject = CreateObject
-  { createObjectId :: Maybe String
+  { createObjectId :: String
   , createObjectName :: String
   , createObjectAc :: Int
   , createObjectMaxHp :: Int
@@ -688,10 +688,10 @@ data CreateObject = CreateObject
 
 createObject :: Parser ObjectAction
 createObject = ObjectCreate <$> (CreateObject
-  <$> optional (strOption
+  <$> strOption
     ( long "id"
     <> metavar "ID"
-    <> help "The ID of the new Object"))
+    <> help "The ID of the new Object")
   <*> strOption
     ( long "name"
     <> short 'n'
@@ -799,7 +799,7 @@ data TrapAction
   deriving (Show, Eq)
 
 data CreateTrap = CreateTrap
-  { createTrapId :: Maybe String
+  { createTrapId :: String
   , createTrapName :: String
   , createTrapDetectDc :: Int
   , createTrapAttackBonus :: Int
@@ -811,8 +811,8 @@ data CreateTrap = CreateTrap
 
 createTrap :: Parser TrapAction
 createTrap = TrapCreate <$> (CreateTrap
-  <$> optional (strOption
-    ( long "id" <> metavar "ID" <> help "ID of the new Trap"))
+  <$> strOption
+    ( long "id" <> metavar "ID" <> help "ID of the new Trap")
   <*> strOption
     ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of the new Trap")
   <*> option auto
@@ -891,7 +891,7 @@ data ItemAction
   deriving (Show, Eq)
 
 data CreateItem = CreateItem
-  { createItemId :: Maybe String
+  { createItemId :: String
   , createItemName :: String
   , createItemCost :: String
   , createItemWeight :: String
@@ -899,7 +899,7 @@ data CreateItem = CreateItem
 
 createItem :: Parser ItemAction
 createItem = ItemCreate <$> (CreateItem
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Item"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Item")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Item")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost of new Item")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight of new Item"))
@@ -954,7 +954,7 @@ data ArmorAction
   deriving (Show, Eq)
 
 data CreateArmor = CreateArmor
-  { createArmorId :: Maybe String
+  { createArmorId :: String
   , createArmorName :: String
   , createArmorCost :: String
   , createArmorWeight :: String
@@ -966,7 +966,7 @@ data CreateArmor = CreateArmor
 
 createArmor :: Parser ArmorAction
 createArmor = ArmorCreate <$> (CreateArmor
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Armor"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Armor")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Armor")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
@@ -1037,7 +1037,7 @@ data WeaponAction
   deriving (Show, Eq)
 
 data CreateWeapon = CreateWeapon
-  { createWeaponId :: Maybe String
+  { createWeaponId :: String
   , createWeaponName :: String
   , createWeaponCost :: String
   , createWeaponWeight :: String
@@ -1048,7 +1048,7 @@ data CreateWeapon = CreateWeapon
 
 createWeapon :: Parser WeaponAction
 createWeapon = WeaponCreate <$> (CreateWeapon
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Weapon"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Weapon")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Weapon")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
@@ -1114,7 +1114,7 @@ data ContainerAction
   deriving (Show, Eq)
 
 data CreateContainer = CreateContainer
-  { createContainerId :: Maybe String
+  { createContainerId :: String
   , createContainerName :: String
   , createContainerCost :: String
   , createContainerWeight :: String
@@ -1123,7 +1123,7 @@ data CreateContainer = CreateContainer
 
 createContainer :: Parser ContainerAction
 createContainer = ContainerCreate <$> (CreateContainer
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Container"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Container")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Container")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
@@ -1179,7 +1179,7 @@ data MountAction
   deriving (Show, Eq)
 
 data CreateMount = CreateMount
-  { createMountId :: Maybe String
+  { createMountId :: String
   , createMountName :: String
   , createMountSpeed :: Int
   , createMountCarrying :: Int
@@ -1187,7 +1187,7 @@ data CreateMount = CreateMount
 
 createMount :: Parser MountAction
 createMount = MountCreate <$> (CreateMount
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Mount"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Mount")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Mount")
   <*> option auto ( long "speed" <> metavar "INTEGER" <> help "Speed of Mount")
   <*> option auto ( long "carrying" <> metavar "INTEGER" <> help "Carrying capacity"))
@@ -1242,7 +1242,7 @@ data SpellAction
   deriving (Show, Eq)
 
 data CreateSpell = CreateSpell
-  { createSpellId :: Maybe String
+  { createSpellId :: String
   , createSpellName :: String
   , createSpellLevel :: Int
   , createSpellRitual :: Bool
@@ -1258,7 +1258,7 @@ data CreateSpell = CreateSpell
 
 createSpell :: Parser SpellAction
 createSpell = SpellCreate <$> (CreateSpell
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Spell"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Spell")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Spell")
   <*> option auto ( long "level" <> metavar "INTEGER" <> help "Spell level")
   <*> switch ( long "ritual" <> help "Is a ritual")
@@ -1337,14 +1337,14 @@ data MoneyAction
   deriving (Show, Eq)
 
 data CreateMoney = CreateMoney
-  { createMoneyId :: Maybe String
+  { createMoneyId :: String
   , createMoneyName :: String
   , createMoneyAmount :: String
   } deriving (Show, Eq)
 
 createMoney :: Parser MoneyAction
 createMoney = MoneyCreate <$> (CreateMoney
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of new Money entity"))
+  <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Money entity")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of money entity")
   <*> strOption ( long "amount" <> metavar "AMOUNT" <> help "Amount string"))
 
