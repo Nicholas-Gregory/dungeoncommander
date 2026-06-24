@@ -26,7 +26,27 @@ module DC.Actions (
   getEntities,
   saveJsonToDaemon,
   refreshSocketConn,
-  getScenes
+  getScenes,
+  getActors,
+  getObjects,
+  getTraps,
+  getItems,
+  getArmors,
+  getWeapons,
+  getContainers,
+  getMounts,
+  getSpells,
+  getMoney,
+  printActor,
+  printObject,
+  printTrap,
+  printItem,
+  printArmor,
+  printWeapon,
+  printContainer,
+  printMount,
+  printSpell,
+  printMoney
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -303,6 +323,56 @@ getScenes = M.filter (\case
   (Scene _ _) -> True
   _ -> False) <$> getEntities
 
+getActors :: AppM Env (M.Map String Entity)
+getActors = M.filter (\case
+  (Actor {}) -> True
+  _ -> False) <$> getEntities
+
+getObjects :: AppM Env (M.Map String Entity)
+getObjects = M.filter (\case
+  (Object {}) -> True
+  _ -> False) <$> getEntities
+
+getTraps :: AppM Env (M.Map String Entity)
+getTraps = M.filter (\case
+  (Trap {}) -> True
+  _ -> False) <$> getEntities
+
+getItems :: AppM Env (M.Map String Entity)
+getItems = M.filter (\case
+  (Item {}) -> True
+  _ -> False) <$> getEntities
+
+getArmors :: AppM Env (M.Map String Entity)
+getArmors = M.filter (\case
+  (Armor {}) -> True
+  _ -> False) <$> getEntities
+
+getWeapons :: AppM Env (M.Map String Entity)
+getWeapons = M.filter (\case
+  (Weapon {}) -> True
+  _ -> False) <$> getEntities
+
+getContainers :: AppM Env (M.Map String Entity)
+getContainers = M.filter (\case
+  (Container {}) -> True
+  _ -> False) <$> getEntities
+
+getMounts :: AppM Env (M.Map String Entity)
+getMounts = M.filter (\case
+  (Mount {}) -> True
+  _ -> False) <$> getEntities
+
+getSpells :: AppM Env (M.Map String Entity)
+getSpells = M.filter (\case
+  (Spell {}) -> True
+  _ -> False) <$> getEntities
+
+getMoney :: AppM Env (M.Map String Entity)
+getMoney = M.filter (\case
+  (Money {}) -> True
+  _ -> False) <$> getEntities
+
 printScene :: VerbosityLevel -> String -> AppM Env ()
 printScene v eid = err "printScene"
   [ ("verbosity", show v)
@@ -316,7 +386,50 @@ printScene v eid = err "printScene"
         (x, y) = dimensions entity
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString <> ", Dimensions: " <> show x <> " by " <> show y
-        vAllString = vNameString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printActor :: VerbosityLevel -> String -> AppM Env ()
+printActor v eid = err "printActor"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        (x, y) = position entity
+        eCHp = currentHp entity
+        eMHp = maxHp entity
+        eCha = cha entity
+        eInt = int entity
+        eCon = con entity
+        eStr = str entity
+        eDex = dex entity
+        eWis = wis entity
+        eHd = hitDice entity
+        eAc = ac entity
+        eL = level entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", Position: (" <> show x <> ", " <> show y
+          <> "), Current HP: " <> show eCHp
+          <> ", Max HP: " <> show eMHp
+          <> ", Charisma: " <> show eCha
+          <> ", Intelligence: " <> show eInt
+          <> ", Constitution: " <> show eCon
+          <> ", Strength: " <> show eStr
+          <> ", Dexterity: " <> show eDex
+          <> ", Wisdom: " <> show eWis
+          <> ", Hit Dice: " <> eHd
+          <> ", Armor Class: " <> show eAc
+          <> ", Level: " <> show eL
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
     case v of
       Name -> liftIO $ hPutStrLn stderr vNameString
       Stats -> liftIO $ hPutStrLn stderr vStatsString
@@ -332,3 +445,236 @@ diceRollResult expression = err "diceRollResult" [ ("expression", show expressio
     Right r -> liftIO $ hPutStrLn stderr
       $ "[ROLL] dice-expression: " <> expression
       <> ". Result: " <> show r
+
+printObject :: VerbosityLevel -> String -> AppM Env ()
+printObject v eid = err "printObject"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        (x, y) = position entity
+        eAc = ac entity
+        eCHp = currentHp entity
+        eMHp = maxHp entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", Position: (" <> show x <> ", " <> show y
+          <> "), Current HP: " <> show eCHp
+          <> ", Max HP: " <> show eMHp
+          <> ", Armor Class: " <> show eAc
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printTrap :: VerbosityLevel -> String -> AppM Env ()
+printTrap v eid = err "printTrap"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        (x, y) = position entity
+        eDetect = detectDc entity
+        eAttack = attackBonus entity
+        eSave = saveDc entity
+        (d1, d2) = damage entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", Position: (" <> show x <> ", " <> show y <> ")"
+          <> ", Detect DC: " <> show eDetect
+          <> ", Attack Bonus: " <> show eAttack
+          <> ", Save DC: " <> show eSave
+          <> ", Damage: (" <> d1 <> ", " <> d2 <> ")"
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printItem :: VerbosityLevel -> String -> AppM Env ()
+printItem v eid = err "printItem"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        iiJson = writeJsonValue (toJson (itemInfo entity))
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString <> ", ItemInfo: " <> iiJson
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printArmor :: VerbosityLevel -> String -> AppM Env ()
+printArmor v eid = err "printArmor"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        iiJson = writeJsonValue (toJson (itemInfo entity))
+        eAc = ac entity
+        eStr = str entity
+        eSd = stealthDisadvantage entity
+        eAt = armorType entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", ItemInfo: " <> iiJson
+          <> ", Armor Class: " <> show eAc
+          <> ", Strength Req: " <> show eStr
+          <> ", Stealth Disadvantage: " <> show eSd
+          <> ", Type: " <> eAt
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printWeapon :: VerbosityLevel -> String -> AppM Env ()
+printWeapon v eid = err "printWeapon"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        iiJson = writeJsonValue (toJson (itemInfo entity))
+        (d1, d2) = damage entity
+        props = properties entity
+        w = weapon entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", ItemInfo: " <> iiJson
+          <> ", Damage: (" <> d1 <> ", " <> d2 <> ")"
+          <> ", Properties: " <> foldl' (++) "" (map (++ ", ") props)
+          <> ", Weapon: " <> show w
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printContainer :: VerbosityLevel -> String -> AppM Env ()
+printContainer v eid = err "printContainer"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        iiJson = writeJsonValue (toJson (itemInfo entity))
+        cap = capacity entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString <> ", ItemInfo: " <> iiJson <> ", Capacity: " <> cap
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printMount :: VerbosityLevel -> String -> AppM Env ()
+printMount v eid = err "printMount"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        spd = speed entity
+        cap = carryingCapacity entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString <> ", Speed: " <> show spd <> ", CarryingCapacity: " <> show cap
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printSpell :: VerbosityLevel -> String -> AppM Env ()
+printSpell v eid = err "printSpell"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        lvl = level entity
+        ri = ritual entity
+        eAction = action entity
+        eRange = range entity
+        eComponents = components entity
+        eDuration = duration entity
+        eTargets = targets entity
+        eAoe = aoe entity
+        eSave = save entity
+        eAttack = attack entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString
+          <> ", Level: " <> show lvl
+          <> ", Ritual: " <> show ri
+          <> ", Action: " <> eAction
+          <> ", Range: " <> eRange
+          <> ", Components: " <> eComponents
+          <> ", Duration: " <> eDuration
+          <> ", Targets: " <> eTargets
+          <> ", AOE: " <> eAoe
+          <> ", Save: " <> eSave
+          <> ", Attack: " <> eAttack
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString
+
+printMoney :: VerbosityLevel -> String -> AppM Env ()
+printMoney v eid = err "printMoney"
+  [ ("verbosity", show v)
+  , ("entity_id", show eid)
+  ] $ do
+    entity <- getEntityById eid
+
+    let info = entityInfo entity
+        eName = name info
+        (EntityChildren eChildren) = children info
+        amt = amount entity
+        vNameString = "ID: " <> eid <> ", Name: " <> eName
+        vStatsString = vNameString <> ", Amount: " <> amt
+        vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
+
+    case v of
+      Name -> liftIO $ hPutStrLn stderr vNameString
+      Stats -> liftIO $ hPutStrLn stderr vStatsString
+      All -> liftIO $ hPutStrLn stderr vAllString

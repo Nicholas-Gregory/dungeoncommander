@@ -47,7 +47,6 @@ data VerbosityLevel
   = Name
   | Stats
   | All
-  | Debug
   deriving (Show, Eq)
 
 type CheckSuccess = Bool

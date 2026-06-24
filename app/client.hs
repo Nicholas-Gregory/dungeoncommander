@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Main where
 
 import System.Environment (getArgs)
@@ -38,13 +36,73 @@ runApp opts sock = do
   case opts of
     RootOptions _ verbosity
       (Just (SceneCommand 
-        (SceneOptions focus [] Nothing Nothing Nothing))) -> do
+        (SceneOptions focus [] Nothing Nothing False False False Nothing))) -> do
           scenes <- getScenes
 
           traverse_ (printScene verbosity) $ M.keys scenes
+    RootOptions _ verbosity
+      (Just (ActorCommand
+        (ActorOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
+          actors <- getActors
+
+          traverse_ (printActor verbosity) $ M.keys actors
+    RootOptions _ verbosity
+      (Just (ObjectCommand 
+        (ObjectOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
+          objects <- getObjects
+
+          traverse_ (printObject verbosity) $ M.keys objects
+    RootOptions _ verbosity
+      (Just (TrapCommand 
+        (TrapOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
+          traps <- getTraps
+
+          traverse_ (printTrap verbosity) $ M.keys traps
+    RootOptions _ verbosity
+      (Just (ItemCommand 
+        (ItemOptions focus [] Nothing Nothing Nothing))) -> do
+          items <- getItems
+
+          traverse_ (printItem verbosity) $ M.keys items
+    RootOptions _ verbosity
+      (Just (ArmorCommand 
+        (ArmorOptions focus [] Nothing Nothing Nothing Nothing Nothing))) -> do
+          armors <- getArmors
+
+          traverse_ (printArmor verbosity) $ M.keys armors
+    RootOptions _ verbosity
+      (Just (WeaponCommand 
+        (WeaponOptions focus [] Nothing Nothing Nothing Nothing))) -> do
+          weapons <- getWeapons
+
+          traverse_ (printWeapon verbosity) $ M.keys weapons
+    RootOptions _ verbosity
+      (Just (ContainerCommand 
+        (ContainerOptions focus [] Nothing Nothing))) -> do
+          containers <- getContainers
+
+          traverse_ (printContainer verbosity) $ M.keys containers
+    RootOptions _ verbosity
+      (Just (MountCommand 
+        (MountOptions focus [] Nothing Nothing Nothing))) -> do
+          mounts <- getMounts
+
+          traverse_ (printMount verbosity) $ M.keys mounts
+    RootOptions _ verbosity
+      (Just (SpellCommand 
+        (SpellOptions focus [] Nothing Nothing Nothing))) -> do
+          spells <- getSpells
+
+          traverse_ (printSpell verbosity) $ M.keys spells
+    RootOptions _ verbosity
+      (Just (MoneyCommand 
+        (MoneyOptions focus [] Nothing Nothing))) -> do
+          monies <- getMoney
+
+          traverse_ (printMoney verbosity) $ M.keys monies
     RootOptions _ _
       (Just (SceneCommand 
-        (SceneOptions focus _ _ _ 
+        (SceneOptions focus _ _ _ _ _ _ 
           (Just (SceneCreate 
             (CreateScene id eName x y)))))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }

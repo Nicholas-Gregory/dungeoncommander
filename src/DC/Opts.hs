@@ -5,25 +5,35 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- SceneOptions(..)
+ SceneOptions(..),
+ ActorOptions(..),
+ ObjectOptions(..),
+ TrapOptions(..),
+ ItemOptions(..),
+ ArmorOptions(..),
+ WeaponOptions(..),
+ ContainerOptions(..),
+ MountOptions(..),
+ SpellOptions(..),
+ MoneyOptions(..)
 ) where
 
 import Options.Applicative
-import DC.Types (Ability, VerbosityLevel (Name, Stats, All, Debug))
+import DC.Types (Ability, VerbosityLevel (..))
 
 data Command
   = RollCommand RollOptions
   | SceneCommand SceneOptions
-  | ActorCommand ActorAction
-  | ObjectCommand ObjectAction
-  | TrapCommand TrapAction
-  | ItemCommand ItemAction
-  | ArmorCommand ArmorAction
-  | WeaponCommand WeaponAction
-  | ContainerCommand ContainerAction
-  | MountCommand MountAction
-  | SpellCommand SpellAction
-  | MoneyCommand MoneyAction
+  | ActorCommand ActorOptions
+  | ObjectCommand ObjectOptions
+  | TrapCommand TrapOptions
+  | ItemCommand ItemOptions
+  | ArmorCommand ArmorOptions
+  | WeaponCommand WeaponOptions
+  | ContainerCommand ContainerOptions
+  | MountCommand MountOptions
+  | SpellCommand SpellOptions
+  | MoneyCommand MoneyOptions
   | ChaCommand AbilityCheck
   | IntCommand AbilityCheck
   | ConCommand AbilityCheck
@@ -42,7 +52,6 @@ data SceneAction
   | SceneRemoveObject
   | SceneAddTo
   | SceneRemoveFrom
-  | SceneSelect SelectScene
   deriving (Show, Eq)
 
 data ActorAction
@@ -84,23 +93,23 @@ rootParser = RootOptions
       (progDesc "Select a Scene, or manage Scenes"))
     <> command "actor" (info (helper <*> (ActorCommand <$> actorAction))
       (progDesc "Select an Actor, or manage Actors"))
-    <> command "object" (info (helper <*> (ObjectCommand <$> objectAction))
+    <> command "object" (info (helper <*> (ObjectCommand <$> objectOptions))
       (progDesc "Select an Object, or manage Objects"))
-    <> command "trap" (info (helper <*> (TrapCommand <$> trapAction))
+    <> command "trap" (info (helper <*> (TrapCommand <$> trapOptions))
       (progDesc "Select a Trap, or manage Traps"))
-    <> command "item" (info (helper <*> (ItemCommand <$> itemAction))
+    <> command "item" (info (helper <*> (ItemCommand <$> itemOptions))
       (progDesc "Select an Item, or manage Items"))
-    <> command "armor" (info (helper <*> (ArmorCommand <$> armorAction))
+    <> command "armor" (info (helper <*> (ArmorCommand <$> armorOptions))
       (progDesc "Select Armor, or manage Armor"))
-    <> command "weapon" (info (helper <*> (WeaponCommand <$> weaponAction))
+    <> command "weapon" (info (helper <*> (WeaponCommand <$> weaponOptions))
       (progDesc "Select a Weapon, or manage Weapons"))
-    <> command "container" (info (helper <*> (ContainerCommand <$> containerAction))
+    <> command "container" (info (helper <*> (ContainerCommand <$> containerOptions))
       (progDesc "Select a Container, or manage Containers"))
-    <> command "mount" (info (helper <*> (MountCommand <$> mountAction))
+    <> command "mount" (info (helper <*> (MountCommand <$> mountOptions))
       (progDesc "Select a Mount, or manage Mounts"))
-    <> command "spell" (info (helper <*> (SpellCommand <$> spellAction))
+    <> command "spell" (info (helper <*> (SpellCommand <$> spellOptions))
       (progDesc "Select a Spell, or manage Spells"))
-    <> command "money" (info (helper <*> (MoneyCommand <$> moneyAction))
+    <> command "money" (info (helper <*> (MoneyCommand <$> moneyOptions))
       (progDesc "Select Money, or manage Money"))
     <> command "cha" (info (helper <*> (ChaCommand <$> abilityCheck))
       (progDesc "Have an Actor perform a Charisma Check"))
@@ -194,6 +203,9 @@ data SceneOptions = SceneOptions
   , sceneIds :: [String]
   , sceneFilterX :: Maybe Int
   , sceneFilterY :: Maybe Int
+  , sceneEntities :: Bool
+  , sceneActors :: Bool
+  , sceneObjects :: Bool
   , sceneCommand :: Maybe SceneAction
   } deriving (Show, Eq)
 
@@ -215,6 +227,15 @@ sceneAction = SceneOptions
     (long "filter-y"
     <> metavar "INTEGER"
     <> help "Filter Scenes by Y dimension"))
+  <*> switch
+    (long "entities"
+    <> help "Use all the Entities in the Scene for the action")
+  <*> switch
+    (long "actors"
+    <> help "Use the Actors in the Scene for the action")
+  <*> switch
+    (long "objects"
+    <> help "Use the Objects in the Scene for the action")
   <*> optional (hsubparser
     (command "update" (info (helper <*> updateScene) 
       (progDesc "Directly update values for a particular Scene"))
@@ -229,15 +250,6 @@ sceneAction = SceneOptions
     <> command "remove-actor" (info (helper <*> removeActorScene)
       (progDesc "Remove an Actor from a Scene"))))
 
-data SelectScene = SelectScene
-  { selectSceneId :: String } deriving (Show, Eq)
-
-selectScene :: Parser SceneAction
-selectScene = SceneSelect <$> (SelectScene
-  <$> strOption
-    ( long "id"
-    <> metavar "SCENE-ID"
-    <> help "The ID of the Scene to select"))
 
 data RemoveActorScene = RemoveActorScene
   { removeActorSceneId :: Maybe String
@@ -351,10 +363,114 @@ updateScene = SceneUpdate <$> (UpdateScene
     <> metavar "INTEGER"
     <> help "The new Y dimension of the Scene")))
 
-actorAction :: Parser ActorAction
-actorAction = hsubparser
-  ( command "update" (info (helper <*> updateActor)
-    (progDesc "Directly update values for a particular Actor")))
+data ActorOptions = ActorOptions
+  { actorFocus :: Bool
+  , actorIds :: [String]
+  , actorFilterX :: Maybe Int
+  , actorFilterY :: Maybe Int
+  , actorFilterCurrentHp :: Maybe Int
+  , actorFilterMaxHp :: Maybe Int
+  , actorFilterCha :: Maybe Int
+  , actorFilterInt :: Maybe Int
+  , actorFilterCon :: Maybe Int
+  , actorFilterStr :: Maybe Int
+  , actorFilterDex :: Maybe Int
+  , actorFilterWis :: Maybe Int
+  , actorFilterHitDice :: Maybe String
+  , actorFilterAc :: Maybe Int
+  , actorFilterLevel :: Maybe Int
+  , actorCarriedItems :: Bool
+  , actorHeldItem :: Bool
+  , actorKnownSpells :: Bool
+  , actorPreparedSpells :: Bool
+  , actorDonnedArmor :: Bool
+  , actorWieldedWeapon :: Bool
+  , actorCommand :: Maybe ActorAction
+  } deriving (Show, Eq)
+
+actorAction :: Parser ActorOptions
+actorAction = ActorOptions
+  <$>  switch
+    (long "focus"
+    <> short 'f'
+    <> help "Selects the Actor(s) for further actions")
+  <*> many (strOption
+    (long "id"
+    <> metavar "ACTOR"
+    <> help "The ID of an Actor on which to perform the action. Can specify multiple with further usage of --id"))
+  <*> optional (option auto
+    (long "filter-x"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their X coordinate"))
+  <*> optional (option auto
+    (long "filter-y"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Y coordinate"))
+  <*> optional (option auto
+    (long "filter-current-hp"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their current HP"))
+  <*> optional (option auto
+    (long "filter-max-hp"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their maximum HP"))
+  <*> optional (option auto
+    (long "filter-cha"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Charisma ability score"))
+  <*> optional (option auto
+    (long "filter-int"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Intelligence ability score"))
+  <*> optional (option auto
+    (long "filter-con"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Constitution ability score"))
+  <*> optional (option auto
+    (long "filter-str"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Strength ability score"))
+  <*> optional (option auto
+    (long "filter-dex"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Dexterity ability score"))
+  <*> optional (option auto
+    (long "filter-wis"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Wissdom ability score"))
+  <*> optional (strOption
+    (long "filter-hd"
+    <> metavar "DICE"
+    <> help "Pass a Dice Expression to filter Actors by their Hit Dice"))
+  <*> optional (option auto
+    (long "filter-ac"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Armor Class"))
+  <*> optional (option auto
+    (long "filter-level"
+    <> metavar "INTEGER"
+    <> help "Filter Actors by their Character Level"))
+  <*> switch
+    (long "carried-items"
+    <> help "Use the Actor's carried items in the action")
+  <*> switch
+    (long "held-items"
+    <> help "Use the Actor's held items in the action")
+  <*> switch
+    (long "known-spells"
+    <> help "Use the Actor's known spells in the action")
+  <*> switch
+    (long "prepared-spells"
+    <> help "Use the Actor's prepared spells in the action")
+  <*> switch
+    (long "donned-armor"
+    <> help "Use the Actor's donned armor in the action")
+  <*> switch
+    (long "wielded-weapons"
+    <> help "Use the Actor's wielded weapon(s) in the action")
+  <*> optional (hsubparser
+    ( command "update" (info (helper <*> updateActor)
+      (progDesc "Directly update values for a particular Actor"))))
 
 data UpdateActor = UpdateActor
   { actorName :: Maybe String
@@ -368,7 +484,7 @@ data UpdateActor = UpdateActor
   , actorStr :: Maybe Int
   , actorDex :: Maybe Int
   , actorWis :: Maybe Int
-  , actorHitDice :: Maybe Int
+  , actorHitDice :: Maybe String
   , actorAc :: Maybe Int
   , actorLevel :: Maybe Int
   } deriving (Show, Eq)
@@ -529,14 +645,31 @@ updateObject = ObjectUpdate <$> (UpdateObject
     <> metavar "INTEGER"
     <> help "The new Y coordinate of the Object")))
 
-objectAction :: Parser ObjectAction
-objectAction = hsubparser
-  ( command "create" (info (helper <*> createObject)
-    (progDesc "Create an Object"))
-  <> command "delete" (info (helper <*> deleteObject)
-    (progDesc "Delete an Object"))
-  <> command "update" (info (helper <*> updateObject)
-    (progDesc "Update an Object")))
+data ObjectOptions = ObjectOptions
+  { objectFocus :: Bool
+  , objectIds :: [String]
+  , objectFilterX :: Maybe Int
+  , objectFilterY :: Maybe Int
+  , objectFilterAc :: Maybe Int
+  , objectFilterMaxHp :: Maybe Int
+  , objectFilterCurrentHp :: Maybe Int
+  , objectCommand :: Maybe ObjectAction
+  } deriving (Show, Eq)
+
+objectOptions :: Parser ObjectOptions
+objectOptions = ObjectOptions
+  <$> switch
+    ( long "focus" <> short 'f' <> help "Select the Object(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "OBJECT" <> help "The ID of an Object"))
+  <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Objects by X coordinate"))
+  <*> optional (option auto ( long "filter-y" <> metavar "INTEGER" <> help "Filter Objects by Y coordinate"))
+  <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Objects by Armor Class"))
+  <*> optional (option auto ( long "filter-max-hp" <> metavar "INTEGER" <> help "Filter Objects by maximum HP"))
+  <*> optional (option auto ( long "filter-current-hp" <> metavar "INTEGER" <> help "Filter Objects by current HP"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createObject) (progDesc "Create an Object"))
+    <> command "delete" (info (helper <*> deleteObject) (progDesc "Delete an Object"))
+    <> command "update" (info (helper <*> updateObject) (progDesc "Update an Object"))))
 
 -- Trap
 data TrapAction
@@ -611,6 +744,31 @@ trapAction = hsubparser
   <> command "delete" (info (helper <*> deleteTrap) (progDesc "Delete a Trap"))
   <> command "update" (info (helper <*> updateTrap) (progDesc "Update a Trap")))
 
+data TrapOptions = TrapOptions
+  { trapFocus :: Bool
+  , trapIds :: [String]
+  , trapFilterX :: Maybe Int
+  , trapFilterY :: Maybe Int
+  , trapFilterDetectDc :: Maybe Int
+  , trapFilterAttackBonus :: Maybe Int
+  , trapFilterSaveDc :: Maybe Int
+  , trapCommand :: Maybe TrapAction
+  } deriving (Show, Eq)
+
+trapOptions :: Parser TrapOptions
+trapOptions = TrapOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Trap(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "TRAP" <> help "The ID of a Trap"))
+  <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Traps by X coordinate"))
+  <*> optional (option auto ( long "filter-y" <> metavar "INTEGER" <> help "Filter Traps by Y coordinate"))
+  <*> optional (option auto ( long "filter-detect-dc" <> metavar "INTEGER" <> help "Filter Traps by detect DC"))
+  <*> optional (option auto ( long "filter-attack-bonus" <> metavar "INTEGER" <> help "Filter Traps by attack bonus"))
+  <*> optional (option auto ( long "filter-save-dc" <> metavar "INTEGER" <> help "Filter Traps by save DC"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createTrap) (progDesc "Create a Trap"))
+    <> command "delete" (info (helper <*> deleteTrap) (progDesc "Delete a Trap"))
+    <> command "update" (info (helper <*> updateTrap) (progDesc "Update a Trap"))))
+
 -- Item
 data ItemAction
   = ItemCreate CreateItem
@@ -660,6 +818,25 @@ itemAction = hsubparser
   ( command "create" (info (helper <*> createItem) (progDesc "Create an Item"))
   <> command "delete" (info (helper <*> deleteItem) (progDesc "Delete an Item"))
   <> command "update" (info (helper <*> updateItem) (progDesc "Update an Item")))
+
+data ItemOptions = ItemOptions
+  { itemFocus :: Bool
+  , itemIds :: [String]
+  , itemFilterCost :: Maybe String
+  , itemFilterWeight :: Maybe String
+  , itemCommand :: Maybe ItemAction
+  } deriving (Show, Eq)
+
+itemOptions :: Parser ItemOptions
+itemOptions = ItemOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Item(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "ITEM" <> help "The ID of an Item"))
+  <*> optional (strOption ( long "filter-cost" <> metavar "COST" <> help "Filter Items by cost"))
+  <*> optional (strOption ( long "filter-weight" <> metavar "WEIGHT" <> help "Filter Items by weight"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createItem) (progDesc "Create an Item"))
+    <> command "delete" (info (helper <*> deleteItem) (progDesc "Delete an Item"))
+    <> command "update" (info (helper <*> updateItem) (progDesc "Update an Item"))))
 
 -- Armor
 data ArmorAction
@@ -727,6 +904,29 @@ armorAction = hsubparser
   <> command "delete" (info (helper <*> deleteArmor) (progDesc "Delete Armor"))
   <> command "update" (info (helper <*> updateArmor) (progDesc "Update Armor")))
 
+data ArmorOptions = ArmorOptions
+  { armorFocus :: Bool
+  , armorIds :: [String]
+  , armorFilterAc :: Maybe Int
+  , armorFilterStr :: Maybe Int
+  , armorFilterStealth :: Maybe Bool
+  , armorFilterType :: Maybe String
+  , armorCommand :: Maybe ArmorAction
+  } deriving (Show, Eq)
+
+armorOptions :: Parser ArmorOptions
+armorOptions = ArmorOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Armor(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "ARMOR" <> help "The ID of an Armor"))
+  <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Armor by AC"))
+  <*> optional (option auto ( long "filter-str" <> metavar "INTEGER" <> help "Filter Armor by Strength"))
+  <*> optional (option auto ( long "filter-stealth-disadvantage" <> metavar "BOOL" <> help "Filter Armor by stealth disadvantage"))
+  <*> optional (strOption ( long "filter-type" <> metavar "TYPE" <> help "Filter Armor by type"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createArmor) (progDesc "Create Armor"))
+    <> command "delete" (info (helper <*> deleteArmor) (progDesc "Delete Armor"))
+    <> command "update" (info (helper <*> updateArmor) (progDesc "Update Armor"))))
+
 -- Weapon
 data WeaponAction
   = WeaponCreate CreateWeapon
@@ -789,6 +989,27 @@ weaponAction = hsubparser
   <> command "delete" (info (helper <*> deleteWeapon) (progDesc "Delete Weapon"))
   <> command "update" (info (helper <*> updateWeapon) (progDesc "Update Weapon")))
 
+data WeaponOptions = WeaponOptions
+  { weaponFocus :: Bool
+  , weaponIds :: [String]
+  , weaponFilterDamage :: Maybe String
+  , weaponFilterProperties :: Maybe String
+  , weaponFilterWeapon :: Maybe String
+  , weaponCommand :: Maybe WeaponAction
+  } deriving (Show, Eq)
+
+weaponOptions :: Parser WeaponOptions
+weaponOptions = WeaponOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Weapon(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "WEAPON" <> help "The ID of a Weapon"))
+  <*> optional (strOption ( long "filter-damage" <> metavar "DICE" <> help "Filter Weapons by damage"))
+  <*> optional (strOption ( long "filter-properties" <> metavar "PROPS" <> help "Filter Weapons by properties"))
+  <*> optional (strOption ( long "filter-weapon" <> metavar "WEAPON" <> help "Filter Weapons by weapon identifier"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createWeapon) (progDesc "Create Weapon"))
+    <> command "delete" (info (helper <*> deleteWeapon) (progDesc "Delete Weapon"))
+    <> command "update" (info (helper <*> updateWeapon) (progDesc "Update Weapon"))))
+
 -- Container
 data ContainerAction
   = ContainerCreate CreateContainer
@@ -843,6 +1064,23 @@ containerAction = hsubparser
   <> command "delete" (info (helper <*> deleteContainer) (progDesc "Delete Container"))
   <> command "update" (info (helper <*> updateContainer) (progDesc "Update Container")))
 
+data ContainerOptions = ContainerOptions
+  { containerFocus :: Bool
+  , containerIds :: [String]
+  , containerFilterCapacity :: Maybe String
+  , containerCommand :: Maybe ContainerAction
+  } deriving (Show, Eq)
+
+containerOptions :: Parser ContainerOptions
+containerOptions = ContainerOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Container(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "CONTAINER" <> help "The ID of a Container"))
+  <*> optional (strOption ( long "filter-capacity" <> metavar "CAPACITY" <> help "Filter Containers by capacity"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createContainer) (progDesc "Create Container"))
+    <> command "delete" (info (helper <*> deleteContainer) (progDesc "Delete Container"))
+    <> command "update" (info (helper <*> updateContainer) (progDesc "Update Container"))))
+
 -- Mount
 data MountAction
   = MountCreate CreateMount
@@ -887,11 +1125,24 @@ updateMount = MountUpdate <$> (UpdateMount
   <*> optional (option auto ( long "speed" <> metavar "INTEGER" <> help "New speed"))
   <*> optional (option auto ( long "carrying" <> metavar "INTEGER" <> help "New carrying capacity")))
 
-mountAction :: Parser MountAction
-mountAction = hsubparser
-  ( command "create" (info (helper <*> createMount) (progDesc "Create Mount"))
-  <> command "delete" (info (helper <*> deleteMount) (progDesc "Delete Mount"))
-  <> command "update" (info (helper <*> updateMount) (progDesc "Update Mount")))
+data MountOptions = MountOptions
+  { mountFocus :: Bool
+  , mountIds :: [String]
+  , mountFilterSpeed :: Maybe Int
+  , mountFilterCarrying :: Maybe Int
+  , mountCommand :: Maybe MountAction
+  } deriving (Show, Eq)
+
+mountOptions :: Parser MountOptions
+mountOptions = MountOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Mount(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "MOUNT" <> help "The ID of a Mount"))
+  <*> optional (option auto ( long "filter-speed" <> metavar "INTEGER" <> help "Filter Mounts by speed"))
+  <*> optional (option auto ( long "filter-carrying" <> metavar "INTEGER" <> help "Filter Mounts by carrying capacity"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createMount) (progDesc "Create Mount"))
+    <> command "delete" (info (helper <*> deleteMount) (progDesc "Delete Mount"))
+    <> command "update" (info (helper <*> updateMount) (progDesc "Update Mount"))))
 
 -- Spell
 data SpellAction
@@ -969,11 +1220,24 @@ updateSpell = SpellUpdate <$> (UpdateSpell
   <*> optional (strOption ( long "save" <> metavar "SAVE" <> help "New save"))
   <*> optional (strOption ( long "attack" <> metavar "ATTACK" <> help "New attack")))
 
-spellAction :: Parser SpellAction
-spellAction = hsubparser
-  ( command "create" (info (helper <*> createSpell) (progDesc "Create Spell"))
-  <> command "delete" (info (helper <*> deleteSpell) (progDesc "Delete Spell"))
-  <> command "update" (info (helper <*> updateSpell) (progDesc "Update Spell")))
+data SpellOptions = SpellOptions
+  { spellFocus :: Bool
+  , spellIds :: [String]
+  , spellFilterLevel :: Maybe Int
+  , spellFilterRitual :: Maybe Bool
+  , spellCommand :: Maybe SpellAction
+  } deriving (Show, Eq)
+
+spellOptions :: Parser SpellOptions
+spellOptions = SpellOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Spell(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "SPELL" <> help "The ID of a Spell"))
+  <*> optional (option auto ( long "filter-level" <> metavar "INTEGER" <> help "Filter Spells by level"))
+  <*> optional (option auto ( long "filter-ritual" <> metavar "BOOL" <> help "Filter Spells by ritual flag"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createSpell) (progDesc "Create Spell"))
+    <> command "delete" (info (helper <*> deleteSpell) (progDesc "Delete Spell"))
+    <> command "update" (info (helper <*> updateSpell) (progDesc "Update Spell"))))
 
 -- Money
 data MoneyAction
@@ -1020,3 +1284,20 @@ moneyAction = hsubparser
   ( command "create" (info (helper <*> createMoney) (progDesc "Create Money"))
   <> command "delete" (info (helper <*> deleteMoney) (progDesc "Delete Money"))
   <> command "update" (info (helper <*> updateMoney) (progDesc "Update Money")))
+
+data MoneyOptions = MoneyOptions
+  { moneyFocus :: Bool
+  , moneyIds :: [String]
+  , moneyFilterAmount :: Maybe String
+  , moneyCommand :: Maybe MoneyAction
+  } deriving (Show, Eq)
+
+moneyOptions :: Parser MoneyOptions
+moneyOptions = MoneyOptions
+  <$> switch ( long "focus" <> short 'f' <> help "Select the Money entity(s) for further actions" )
+  <*> many (strOption ( long "id" <> metavar "MONEY" <> help "The ID of a Money entity"))
+  <*> optional (strOption ( long "filter-amount" <> metavar "AMOUNT" <> help "Filter Money by amount string"))
+  <*> optional (hsubparser
+    ( command "create" (info (helper <*> createMoney) (progDesc "Create Money"))
+    <> command "delete" (info (helper <*> deleteMoney) (progDesc "Delete Money"))
+    <> command "update" (info (helper <*> updateMoney) (progDesc "Update Money"))))
