@@ -18,17 +18,17 @@ data ErrorDetail
   | CliParseError String
   | SocketError String
   | OtherError String
-  deriving (Show)
+  deriving (Show, Eq)
 
 data ErrorContextFrame = ErrorContextFrame
   { errorAction :: String
   , errorData :: [(String, String)]
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 data AppError = AppError
   { errorDetail :: ErrorDetail 
   , errorContext :: [ErrorContextFrame]
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 err :: String -> [(String, String)] -> AppM a b -> AppM a b
 err actionName dynamics action = 

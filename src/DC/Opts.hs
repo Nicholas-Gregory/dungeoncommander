@@ -15,11 +15,15 @@ module DC.Opts (
  ContainerOptions(..),
  MountOptions(..),
  SpellOptions(..),
- MoneyOptions(..)
+ MoneyOptions(..),
+ ActorAction(..),
+ CreateActor(..)
 ) where
 
 import Options.Applicative
-import DC.Types (Ability, VerbosityLevel (..))
+import DC.Types
+import DC.Error (AppError(AppError))
+import DC.Json
 
 data Command
   = RollCommand RollOptions
@@ -487,9 +491,11 @@ data CreateActor = CreateActor
   , createActorStr :: Int
   , createActorDex :: Int
   , createActorWis :: Int
-  , createActorHitDice :: Int
+  , createActorHitDice :: String
   , createActorAc :: Int
   , createActorLevel  :: Int
+  , createActorSaveProficiencies :: [Either AppError Ability]
+  , createActorWeaponProficiencies :: [Either AppError WeaponProficiency]
   } deriving (Show, Eq)
 
 createActor :: Parser ActorAction
@@ -543,7 +549,7 @@ createActor = ActorCreate <$> (CreateActor
     (long "wis"
     <> metavar "INTEGER"
     <> help "The Wisdom ability score of the new Actor")
-  <*> option auto
+  <*> strOption
     (long "hit-dice"
     <> long "hd"
     <> metavar "DICE"
@@ -557,7 +563,17 @@ createActor = ActorCreate <$> (CreateActor
     (long "level"
     <> short 'l'
     <> metavar "INTEGER"
-    <> help "The character level of the new Actor"))
+    <> help "The character level of the new Actor")
+  <*> many ((\s -> fromValue (JsonString s) :: Either AppError Ability) <$> strOption
+    (long "save-proficiency"
+    <> long "sp"
+    <> metavar "ABILITY"
+    <> help "Three-letter ability score identifier (cha, int, wis, dex, str, con). Can be used multiple times"))
+  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProficiency) <$> strOption
+    (long "weapon-proficiency"
+    <> long "wp"
+    <> metavar "WEAPON-PROFICIENCY"
+    <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match in quotes, lowercase.")))
 
 data UpdateActor = UpdateActor
   { actorName :: Maybe String

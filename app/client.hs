@@ -23,9 +23,10 @@ import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types 
 import DC.Error (AppM)
-import Options.Applicative
+import Options.Applicative ( execParser )
 import DC.Opts
 import Data.Foldable (traverse_)
+import Data.Either (rights)
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -107,6 +108,31 @@ runApp opts sock = do
             (CreateScene id eName x y)))))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
+
+      saveEntity id entity
+    RootOptions _ _
+      (Just (ActorCommand
+        (ActorOptions focus _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+          (Just (ActorCreate
+            (CreateActor id eName x y cHp mHp cha int con str dex wis hd ac l sp wp)))))) -> do
+      let info = EntityInfo { name = eName, children = EntityChildren [] }
+      let entity = Actor { 
+        entityInfo = info,
+        position = (x, y),
+        currentHp = cHp,
+        maxHp = mHp,
+        cha = cha,
+        int = int,
+        con = con,
+        str = str,
+        dex = dex,
+        wis = wis,
+        hitDice = hd,
+        ac = ac,
+        level = l,
+        saveProficiencies = SaveProficiencies $ rights sp,
+        weaponProficiencies = WeaponProficiencies $ rights wp
+      }
 
       saveEntity id entity
     RootOptions _ _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do

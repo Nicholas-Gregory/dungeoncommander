@@ -428,6 +428,12 @@ printActor v eid = err "printActor"
           <> ", Hit Dice: " <> eHd
           <> ", Armor Class: " <> show eAc
           <> ", Level: " <> show eL
+          <> ", Save Proficiencies: " <> foldl' (++) "" (map (\p -> case toJson p of 
+            JsonString s -> s <> ", "
+            _ -> "") (case saveProficiencies entity of SaveProficiencies a -> a))
+          <> ", Weapon Proficiencies: " <> foldl' (++) "" (map (\p -> case toJson p of 
+          JsonString s -> s <> ", "
+          _ -> "") (case weaponProficiencies entity of WeaponProficiencies a -> a))
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
     case v of
