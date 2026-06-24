@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module DC.Actions (
   getAbilityScore,
@@ -24,7 +25,8 @@ module DC.Actions (
   diceRollResult,
   getEntities,
   saveJsonToDaemon,
-  refreshSocketConn
+  refreshSocketConn,
+  getScenes
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -251,15 +253,15 @@ initCurrentScene (JsonObject o) = err "initCurrentScene" [("input_json", show o)
 
       liftIO $ atomicModifyIORef' stateRef $ \st ->
         (st { currentScene = s }, ())
-    Just x -> throwBaseError 
-      $ JsonValidationError 
+    Just x -> throwBaseError
+      $ JsonValidationError
       $ "Expected JSON String for \"currentScene\", found: "
       <> show x
 initCurrentScene x = err "initCurrentScene" [("input_json", show x)] $ throwBaseError
   $ JsonValidationError "Expected JSON Object"
 
 getEntityJson :: JsonValue -> AppM Env (M.Map String JsonValue)
-getEntityJson (JsonObject o) = err "getEntityJson" [("input_json", show o)] $ do 
+getEntityJson (JsonObject o) = err "getEntityJson" [("input_json", show o)] $ do
   case M.lookup "entities" o of
     Nothing -> throwBaseError $ JsonValidationError "Need \"entities\" field in input JSON"
     Just (JsonObject entities) -> return entities
@@ -296,8 +298,13 @@ getEntityById entityId = err "getEntityById" [("entity_id", show entityId)] $ do
     Nothing -> throwBaseError $ OtherError "Entity with this ID does not exist in state"
     Just entity -> return entity
 
+getScenes :: AppM Env (M.Map String Entity)
+getScenes = M.filter (\case
+  (Scene _ _) -> True
+  _ -> False) <$> getEntities
+
 printScene :: VerbosityLevel -> String -> AppM Env ()
-printScene v eid = err "printScene" 
+printScene v eid = err "printScene"
   [ ("verbosity", show v)
   , ("entity_id", show eid)
   ] $ do
@@ -318,10 +325,10 @@ printScene v eid = err "printScene"
 diceRollResult :: String -> AppM Env ()
 diceRollResult expression = err "diceRollResult" [ ("expression", show expression ) ] $ do
   gen <- asks gen
-  
+
   --TODO: stdout roll result action to pipe to next command in chain
   case processExpression gen expression of
     Left e -> throwError e
-    Right r -> liftIO $ hPutStrLn stderr 
+    Right r -> liftIO $ hPutStrLn stderr
       $ "[ROLL] dice-expression: " <> expression
       <> ". Result: " <> show r

@@ -4,15 +4,16 @@ module DC.Opts (
  SceneAction(..),
  CreateScene(..),
  RollOptions(..),
- RootOptions(..)
+ RootOptions(..),
+ SceneOptions(..)
 ) where
 
 import Options.Applicative
-import DC.Types (Ability)
+import DC.Types (Ability, VerbosityLevel (Name, Stats, All, Debug))
 
 data Command
   = RollCommand RollOptions
-  | SceneCommand SceneAction
+  | SceneCommand SceneOptions
   | ActorCommand ActorAction
   | ObjectCommand ObjectAction
   | TrapCommand TrapAction
@@ -58,9 +59,15 @@ rootInfo :: ParserInfo RootOptions
 rootInfo = info (helper <*> rootParser) (progDesc "Manage game state for a Dungeons and Dragons 5e session using various commands")
 
 data RootOptions = RootOptions
-  { save :: Bool
+  { rootSave :: Bool
+  , rootVerbosity :: VerbosityLevel
   , rootCommand :: Maybe Command
   }
+
+toVerbosity :: Int -> VerbosityLevel
+toVerbosity 0 = Name
+toVerbosity 1 = Stats
+toVerbosity _ = All
 
 rootParser :: Parser RootOptions
 rootParser = RootOptions
@@ -68,6 +75,10 @@ rootParser = RootOptions
     (long "save"
     <> short 's'
     <> help "Use this flag to commit the result to disk")
+  <*> (toVerbosity . length <$> many (flag' ()
+    (long "verbosity"
+    <> short 'v'
+    <> help "Use a number of this flag to set the verbosity of printed messages")))
   <*> optional (hsubparser
     ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
       (progDesc "Select a Scene, or manage Scenes"))
@@ -178,20 +189,45 @@ abilityCheck = AbilityCheck
     <> short 's'
     <> help "Include this switch if the check is a saving throw")
 
-sceneAction :: Parser SceneAction
-sceneAction = hsubparser
-  ( command "update" (info (helper <*> updateScene) 
-    (progDesc "Directly update values for a particular Scene"))
-  <> command "create" (info (helper <*> createScene)
-    (progDesc "Create an entirely new Scene"))
-  <> command "delete" (info (helper <*> deleteScene)
-    (progDesc "Delete a Scene entirely"))
-  <> command "add-actor" (info (helper <*> addActorScene)
-    (progDesc "Add an Actor to a Scene"))
-  <> command "add-object" (info (helper <*> addObjectScene)
-    (progDesc "Add an Object to a Scene"))
-  <> command "remove-actor" (info (helper <*> removeActorScene)
-    (progDesc "Remove an Actor from a Scene")))
+data SceneOptions = SceneOptions
+  { sceneFocus :: Bool
+  , sceneIds :: [String]
+  , sceneFilterX :: Maybe Int
+  , sceneFilterY :: Maybe Int
+  , sceneCommand :: Maybe SceneAction
+  } deriving (Show, Eq)
+
+sceneAction :: Parser SceneOptions
+sceneAction = SceneOptions
+  <$> switch
+    (long "focus"
+    <> short 'f'
+    <> help "Selects the Scene(s) for further actions")
+  <*> many (strOption
+    (long "id"
+    <> metavar "SCENE"
+    <> help "The ID of a Scene on which to perform the action. Can specify multiple with further usage of --id"))
+  <*> optional (option auto
+    (long "filter-x"
+    <> metavar "INTEGER"
+    <> help "Filter Scenes by X dimension"))
+  <*> optional (option auto
+    (long "filter-y"
+    <> metavar "INTEGER"
+    <> help "Filter Scenes by Y dimension"))
+  <*> optional (hsubparser
+    (command "update" (info (helper <*> updateScene) 
+      (progDesc "Directly update values for a particular Scene"))
+    <> command "create" (info (helper <*> createScene)
+      (progDesc "Create an entirely new Scene"))
+    <> command "delete" (info (helper <*> deleteScene)
+      (progDesc "Delete a Scene entirely"))
+    <> command "add-actor" (info (helper <*> addActorScene)
+      (progDesc "Add an Actor to a Scene"))
+    <> command "add-object" (info (helper <*> addObjectScene)
+      (progDesc "Add an Object to a Scene"))
+    <> command "remove-actor" (info (helper <*> removeActorScene)
+      (progDesc "Remove an Actor from a Scene"))))
 
 data SelectScene = SelectScene
   { selectSceneId :: String } deriving (Show, Eq)

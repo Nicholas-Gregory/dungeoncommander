@@ -23,10 +23,11 @@ import Data.IORef
 import Control.Monad.Trans (MonadIO(liftIO))
 import DC.Actions
 import Data.Traversable (traverse)
-import DC.Types (Env(..), GameState (..), Entity (Scene, dimensions, entityInfo), EntityInfo (..), EntityChildren (EntityChildren))
+import DC.Types 
 import DC.Error (AppM)
 import Options.Applicative
-import DC.Opts (rootInfo, Command (..), SceneAction (SceneCreate), CreateScene (CreateScene), RollOptions(..), RootOptions(..))
+import DC.Opts
+import Data.Foldable (traverse_)
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -35,15 +36,25 @@ runApp opts sock = do
   initEntities json
 
   case opts of
-    RootOptions _ (Just (SceneCommand (SceneCreate (CreateScene id eName x y)))) -> do
+    RootOptions _ verbosity
+      (Just (SceneCommand 
+        (SceneOptions focus [] Nothing Nothing Nothing))) -> do
+          scenes <- getScenes
+
+          traverse_ (printScene verbosity) $ M.keys scenes
+    RootOptions _ _
+      (Just (SceneCommand 
+        (SceneOptions focus _ _ _ 
+          (Just (SceneCreate 
+            (CreateScene id eName x y)))))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
       saveEntity id entity
-    RootOptions _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
+    RootOptions _ _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 
-  when (save opts) $ do
+  when (rootSave opts) $ do
     sock <- refreshSocketConn
     saveJsonToDaemon sock
 
