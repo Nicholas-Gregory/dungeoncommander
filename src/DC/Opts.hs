@@ -55,7 +55,7 @@ data SceneAction
   deriving (Show, Eq)
 
 data ActorAction
-  = ActorCreate
+  = ActorCreate CreateActor
   | ActorDelete
   | ActorUpdate UpdateActor
   | ActorAdd
@@ -469,8 +469,95 @@ actorAction = ActorOptions
     (long "wielded-weapons"
     <> help "Use the Actor's wielded weapon(s) in the action")
   <*> optional (hsubparser
-    ( command "update" (info (helper <*> updateActor)
-      (progDesc "Directly update values for a particular Actor"))))
+    (command "update" (info (helper <*> updateActor)
+      (progDesc "Directly update values for a particular Actor"))
+    <> command "create" (info (helper <*> createActor)
+      (progDesc "Directly create a new Actor by providing values"))))
+
+data CreateActor = CreateActor
+  { createActorId :: String
+  , createActorName :: String
+  , createActorX :: Int
+  , createActorY :: Int
+  , createActorCurrentHp :: Int
+  , createActorMaxHp :: Int
+  , createActorCha :: Int
+  , createActorInt :: Int
+  , createActorCon :: Int
+  , createActorStr :: Int
+  , createActorDex :: Int
+  , createActorWis :: Int
+  , createActorHitDice :: Int
+  , createActorAc :: Int
+  , createActorLevel  :: Int
+  } deriving (Show, Eq)
+
+createActor :: Parser ActorAction
+createActor = ActorCreate <$> (CreateActor
+  <$> strOption
+    (long "id"
+    <> metavar "ACTOR-ID"
+    <> help "The ID of the new Actor")
+  <*> strOption
+    (long "name"
+    <> short 'n'
+    <> metavar "ACTOR-NAME"
+    <> help "The name of the new Actor")
+  <*> option auto
+    (short 'x'
+    <> metavar "INTEGER"
+    <> help "The X coordinate of the new Actor")
+  <*> option auto
+    (short 'y'
+    <> metavar "INTEGER"
+    <> help "The Y coordinate of the new Actor")
+  <*> option auto
+    (long "current-hp"
+    <> metavar "INTEGER"
+    <> help "The current HP of the new Actor")
+  <*> option auto
+    (long "max-hp"
+    <> metavar "INTEGER"
+    <> help "The maximum HP of the new Actor")
+  <*> option auto
+    (long "cha"
+    <> metavar "INTEGER"
+    <> help "The Charisma ability score of the new Actor")
+  <*> option auto
+    (long "int"
+    <> metavar "INTEGER"
+    <> help "The Intelligence ability score of the new Actor")
+  <*> option auto
+    (long "con"
+    <> metavar "INTEGER"
+    <> help "The Constitution ability score of the new Actor")
+  <*> option auto
+    (long "str"
+    <> metavar "INTEGER"
+    <> help "The Strength ability score of the new Actor")
+  <*> option auto
+    (long "dex"
+    <> metavar "INTEGER"
+    <> help "The Dexterity ability score of the new Actor")
+  <*> option auto
+    (long "wis"
+    <> metavar "INTEGER"
+    <> help "The Wisdom ability score of the new Actor")
+  <*> option auto
+    (long "hit-dice"
+    <> long "hd"
+    <> metavar "DICE"
+    <> help "A dice expression specifying the hit dice of the new Actor")
+  <*> option auto
+    (long "ac"
+    <> long "armor-class"
+    <> metavar "INTEGER"
+    <> help "The armor class of the new Actor")
+  <*> option auto
+    (long "level"
+    <> short 'l'
+    <> metavar "INTEGER"
+    <> help "The character level of the new Actor"))
 
 data UpdateActor = UpdateActor
   { actorName :: Maybe String
@@ -738,12 +825,6 @@ updateTrap = TrapUpdate <$> (UpdateTrap
   <*> optional (option auto ( short 'x' <> metavar "INTEGER" <> help "New X coordinate"))
   <*> optional (option auto ( short 'y' <> metavar "INTEGER" <> help "New Y coordinate")))
 
-trapAction :: Parser TrapAction
-trapAction = hsubparser
-  ( command "create" (info (helper <*> createTrap) (progDesc "Create a Trap"))
-  <> command "delete" (info (helper <*> deleteTrap) (progDesc "Delete a Trap"))
-  <> command "update" (info (helper <*> updateTrap) (progDesc "Update a Trap")))
-
 data TrapOptions = TrapOptions
   { trapFocus :: Bool
   , trapIds :: [String]
@@ -812,12 +893,6 @@ updateItem = ItemUpdate <$> (UpdateItem
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight")))
-
-itemAction :: Parser ItemAction
-itemAction = hsubparser
-  ( command "create" (info (helper <*> createItem) (progDesc "Create an Item"))
-  <> command "delete" (info (helper <*> deleteItem) (progDesc "Delete an Item"))
-  <> command "update" (info (helper <*> updateItem) (progDesc "Update an Item")))
 
 data ItemOptions = ItemOptions
   { itemFocus :: Bool
@@ -898,12 +973,6 @@ updateArmor = ArmorUpdate <$> (UpdateArmor
   <*> optional (option auto ( long "stealth-disadvantage" <> metavar "BOOL" <> help "New stealth disadvantage flag"))
   <*> optional (strOption ( long "type" <> metavar "TYPE" <> help "New armor type")))
 
-armorAction :: Parser ArmorAction
-armorAction = hsubparser
-  ( command "create" (info (helper <*> createArmor) (progDesc "Create Armor"))
-  <> command "delete" (info (helper <*> deleteArmor) (progDesc "Delete Armor"))
-  <> command "update" (info (helper <*> updateArmor) (progDesc "Update Armor")))
-
 data ArmorOptions = ArmorOptions
   { armorFocus :: Bool
   , armorIds :: [String]
@@ -983,12 +1052,6 @@ updateWeapon = WeaponUpdate <$> (UpdateWeapon
   <*> optional (strOption ( long "properties" <> metavar "PROPS" <> help "New properties"))
   <*> optional (strOption ( long "weapon" <> metavar "WEAPON" <> help "New weapon identifier")))
 
-weaponAction :: Parser WeaponAction
-weaponAction = hsubparser
-  ( command "create" (info (helper <*> createWeapon) (progDesc "Create Weapon"))
-  <> command "delete" (info (helper <*> deleteWeapon) (progDesc "Delete Weapon"))
-  <> command "update" (info (helper <*> updateWeapon) (progDesc "Update Weapon")))
-
 data WeaponOptions = WeaponOptions
   { weaponFocus :: Bool
   , weaponIds :: [String]
@@ -1057,12 +1120,6 @@ updateContainer = ContainerUpdate <$> (UpdateContainer
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight"))
   <*> optional (strOption ( long "capacity" <> metavar "CAPACITY" <> help "New capacity")))
-
-containerAction :: Parser ContainerAction
-containerAction = hsubparser
-  ( command "create" (info (helper <*> createContainer) (progDesc "Create Container"))
-  <> command "delete" (info (helper <*> deleteContainer) (progDesc "Delete Container"))
-  <> command "update" (info (helper <*> updateContainer) (progDesc "Update Container")))
 
 data ContainerOptions = ContainerOptions
   { containerFocus :: Bool
@@ -1278,12 +1335,6 @@ updateMoney = MoneyUpdate <$> (UpdateMoney
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Money to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "amount" <> metavar "AMOUNT" <> help "New amount")))
-
-moneyAction :: Parser MoneyAction
-moneyAction = hsubparser
-  ( command "create" (info (helper <*> createMoney) (progDesc "Create Money"))
-  <> command "delete" (info (helper <*> deleteMoney) (progDesc "Delete Money"))
-  <> command "update" (info (helper <*> updateMoney) (progDesc "Update Money")))
 
 data MoneyOptions = MoneyOptions
   { moneyFocus :: Bool
