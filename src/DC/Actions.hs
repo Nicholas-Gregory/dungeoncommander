@@ -46,7 +46,8 @@ module DC.Actions (
   printContainer,
   printMount,
   printSpell,
-  printMoney
+  printMoney,
+  sendFocusToDaemon
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -237,6 +238,18 @@ saveJsonToDaemon sock = err "saveJsonToDaemon" [] $ do
         "SUCCESS" -> liftIO $ hPutStrLn stderr "[SYSTEM] Saved session state to disk"
         _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Daemon encountered an error (check logs)"
 
+sendFocusToDaemon :: Socket -> [String] -> AppM Env ()
+sendFocusToDaemon conn entityIds = err "sendFocusToDaemon" [("entity_ids", show entityIds)] $ do
+  r <- liftIO $ timeout 3000000 $ sendAll conn
+    $ C.pack $ "{\"action\": \"focus\", \"payload\": "
+    <> writeJsonValue (toJson entityIds) <> "}"
+  sr <- liftIO $ timeout 3000000 $ recv conn 4096
+
+  case (r, sr) of
+    (Just _, Just sr') -> case C.unpack sr' of
+      "SUCCESS" -> liftIO $ hPutStrLn stderr $ "[SYSTEM] Entities focused: " <> unwords entityIds
+      _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Daemon encountered an error (check logs)"
+    _ -> throwBaseError $ SocketError "Socket timed out"
 
 getJsonFromDaemon :: Socket -> AppM Env JsonValue
 getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do

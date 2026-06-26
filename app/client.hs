@@ -35,84 +35,93 @@ runApp opts sock = do
   initEntities json
 
   case opts of
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (SceneCommand 
-        (SceneOptions focus [] Nothing Nothing False False False Nothing))) -> do
+        (SceneOptions [] Nothing Nothing False False False Nothing))) -> do
           scenes <- getScenes
+          stateRef <- asks state
+          gameState <- liftIO $ readIORef stateRef
+          let oldOutput = output gameState
+          let newOutEntities = scenes
+          let newOutput = oldOutput { outEntities = newOutEntities }
 
+          liftIO $ atomicModifyIORef' stateRef $ \st ->
+            (st { output = newOutput}, ())
           traverse_ (printScene verbosity) $ M.keys scenes
-    RootOptions _ verbosity
+          
+
+    RootOptions _ verbosity _
       (Just (ActorCommand
-        (ActorOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
+        (ActorOptions [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
           actors <- getActors
 
           traverse_ (printActor verbosity) $ M.keys actors
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (ObjectCommand 
-        (ObjectOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
+        (ObjectOptions [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
           objects <- getObjects
 
           traverse_ (printObject verbosity) $ M.keys objects
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (TrapCommand 
-        (TrapOptions focus [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
+        (TrapOptions [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
           traps <- getTraps
 
           traverse_ (printTrap verbosity) $ M.keys traps
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (ItemCommand 
-        (ItemOptions focus [] Nothing Nothing Nothing))) -> do
+        (ItemOptions [] Nothing Nothing Nothing))) -> do
           items <- getItems
 
           traverse_ (printItem verbosity) $ M.keys items
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (ArmorCommand 
-        (ArmorOptions focus [] Nothing Nothing Nothing Nothing Nothing))) -> do
+        (ArmorOptions [] Nothing Nothing Nothing Nothing Nothing))) -> do
           armors <- getArmors
 
           traverse_ (printArmor verbosity) $ M.keys armors
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (WeaponCommand 
-        (WeaponOptions focus [] Nothing Nothing Nothing Nothing))) -> do
+        (WeaponOptions [] Nothing Nothing Nothing Nothing))) -> do
           weapons <- getWeapons
 
           traverse_ (printWeapon verbosity) $ M.keys weapons
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (ContainerCommand 
-        (ContainerOptions focus [] Nothing Nothing))) -> do
+        (ContainerOptions [] Nothing Nothing))) -> do
           containers <- getContainers
 
           traverse_ (printContainer verbosity) $ M.keys containers
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (MountCommand 
-        (MountOptions focus [] Nothing Nothing Nothing))) -> do
+        (MountOptions [] Nothing Nothing Nothing))) -> do
           mounts <- getMounts
 
           traverse_ (printMount verbosity) $ M.keys mounts
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (SpellCommand 
-        (SpellOptions focus [] Nothing Nothing Nothing))) -> do
+        (SpellOptions [] Nothing Nothing Nothing))) -> do
           spells <- getSpells
 
           traverse_ (printSpell verbosity) $ M.keys spells
-    RootOptions _ verbosity
+    RootOptions _ verbosity _
       (Just (MoneyCommand 
-        (MoneyOptions focus [] Nothing Nothing))) -> do
+        (MoneyOptions [] Nothing Nothing))) -> do
           monies <- getMoney
 
           traverse_ (printMoney verbosity) $ M.keys monies
-    RootOptions _ _
+    RootOptions _ _ _
       (Just (SceneCommand 
-        (SceneOptions focus _ _ _ _ _ _ 
+        (SceneOptions _ _ _ _ _ _ 
           (Just (SceneCreate 
             (CreateScene id eName x y)))))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
       saveEntity id entity
-    RootOptions _ _
+    RootOptions _ _ _
       (Just (ActorCommand
-        (ActorOptions focus _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+        (ActorOptions _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
           (Just (ActorCreate
             (CreateActor id eName x y cHp mHp cha int con str dex wis hd ac l sp wp)))))) -> do
       let info = EntityInfo { name = eName, children = EntityChildren [] }
@@ -135,12 +144,22 @@ runApp opts sock = do
       }
 
       saveEntity id entity
-    RootOptions _ _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
+    RootOptions _ _ _ (Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 
   when (rootSave opts) $ do
     sock <- refreshSocketConn
     saveJsonToDaemon sock
+  
+  when (focus opts) $ do
+    sock <- refreshSocketConn
+    stateRef <- asks state
+    gameState <- liftIO $ readIORef stateRef
+    let currentOutput = output gameState
+    let outputEntities = outEntities currentOutput
+
+    sendFocusToDaemon sock (map fst (M.toList outputEntities))
+
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -150,6 +169,7 @@ main = withSocketsDo $ do
   let initState = GameState
         { currentScene = ""
         , entities = M.empty
+        , output = Output M.empty M.empty [] Nothing
         , commits = []
         }
   stateRef <- newIORef initState

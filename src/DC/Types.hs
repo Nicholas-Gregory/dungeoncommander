@@ -24,9 +24,10 @@ module DC.Types (
   WeaponProperties(..),
   DEnv(..),
   DState(..),
-  DaemonM
+  DaemonM,
+  Output(..)
 ) where
-import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
+import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField, JsonObjectMap)
 import Data.List (find)
 import qualified Data.Map as M
 import System.Random
@@ -39,9 +40,16 @@ import Control.Applicative (Alternative((<|>)), optional)
 import Control.Monad.Except (ExceptT)
 import Network.Socket (Socket)
 
+data Output = Output
+  { outEntities :: M.Map String Entity
+  , outActions :: M.Map String JsonValue
+  , outFocus :: [String]
+  , outError :: Maybe AppError}
+
 data GameState = GameState 
   { currentScene :: String,
     entities :: M.Map String Entity
+  , output :: Output
   , commits :: [Entity]
   }
 

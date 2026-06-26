@@ -74,6 +74,7 @@ rootInfo = info (helper <*> rootParser) (progDesc "Manage game state for a Dunge
 data RootOptions = RootOptions
   { rootSave :: Bool
   , rootVerbosity :: VerbosityLevel
+  , focus :: Bool
   , rootCommand :: Maybe Command
   }
 
@@ -92,6 +93,10 @@ rootParser = RootOptions
     (long "verbosity"
     <> short 'v'
     <> help "Use a number of this flag to set the verbosity of printed messages")))
+  <*> switch
+    (long "focus"
+    <> short 'f'
+    <> help "Use to save the selected entity/entities as in focus, to use in further commands")
   <*> optional (hsubparser
     ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
       (progDesc "Select a Scene, or manage Scenes"))
@@ -203,8 +208,7 @@ abilityCheck = AbilityCheck
     <> help "Include this switch if the check is a saving throw")
 
 data SceneOptions = SceneOptions
-  { sceneFocus :: Bool
-  , sceneIds :: [String]
+  { sceneIds :: [String]
   , sceneFilterX :: Maybe Int
   , sceneFilterY :: Maybe Int
   , sceneEntities :: Bool
@@ -215,11 +219,7 @@ data SceneOptions = SceneOptions
 
 sceneAction :: Parser SceneOptions
 sceneAction = SceneOptions
-  <$> switch
-    (long "focus"
-    <> short 'f'
-    <> help "Selects the Scene(s) for further actions")
-  <*> many (strOption
+  <$> many (strOption
     (long "id"
     <> metavar "SCENE"
     <> help "The ID of a Scene on which to perform the action. Can specify multiple with further usage of --id"))
@@ -368,8 +368,7 @@ updateScene = SceneUpdate <$> (UpdateScene
     <> help "The new Y dimension of the Scene")))
 
 data ActorOptions = ActorOptions
-  { actorFocus :: Bool
-  , actorIds :: [String]
+  { actorIds :: [String]
   , actorFilterX :: Maybe Int
   , actorFilterY :: Maybe Int
   , actorFilterCurrentHp :: Maybe Int
@@ -394,11 +393,7 @@ data ActorOptions = ActorOptions
 
 actorAction :: Parser ActorOptions
 actorAction = ActorOptions
-  <$>  switch
-    (long "focus"
-    <> short 'f'
-    <> help "Selects the Actor(s) for further actions")
-  <*> many (strOption
+  <$> many (strOption
     (long "id"
     <> metavar "ACTOR"
     <> help "The ID of an Actor on which to perform the action. Can specify multiple with further usage of --id"))
@@ -766,8 +761,7 @@ updateObject = ObjectUpdate <$> (UpdateObject
     <> help "The new Y coordinate of the Object")))
 
 data ObjectOptions = ObjectOptions
-  { objectFocus :: Bool
-  , objectIds :: [String]
+  { objectIds :: [String]
   , objectFilterX :: Maybe Int
   , objectFilterY :: Maybe Int
   , objectFilterAc :: Maybe Int
@@ -778,9 +772,7 @@ data ObjectOptions = ObjectOptions
 
 objectOptions :: Parser ObjectOptions
 objectOptions = ObjectOptions
-  <$> switch
-    ( long "focus" <> short 'f' <> help "Select the Object(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "OBJECT" <> help "The ID of an Object"))
+  <$> many (strOption ( long "id" <> metavar "OBJECT" <> help "The ID of an Object"))
   <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Objects by X coordinate"))
   <*> optional (option auto ( long "filter-y" <> metavar "INTEGER" <> help "Filter Objects by Y coordinate"))
   <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Objects by Armor Class"))
@@ -859,8 +851,7 @@ updateTrap = TrapUpdate <$> (UpdateTrap
   <*> optional (option auto ( short 'y' <> metavar "INTEGER" <> help "New Y coordinate")))
 
 data TrapOptions = TrapOptions
-  { trapFocus :: Bool
-  , trapIds :: [String]
+  { trapIds :: [String]
   , trapFilterX :: Maybe Int
   , trapFilterY :: Maybe Int
   , trapFilterDetectDc :: Maybe Int
@@ -871,8 +862,7 @@ data TrapOptions = TrapOptions
 
 trapOptions :: Parser TrapOptions
 trapOptions = TrapOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Trap(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "TRAP" <> help "The ID of a Trap"))
+  <$> many (strOption ( long "id" <> metavar "TRAP" <> help "The ID of a Trap"))
   <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Traps by X coordinate"))
   <*> optional (option auto ( long "filter-y" <> metavar "INTEGER" <> help "Filter Traps by Y coordinate"))
   <*> optional (option auto ( long "filter-detect-dc" <> metavar "INTEGER" <> help "Filter Traps by detect DC"))
@@ -928,8 +918,7 @@ updateItem = ItemUpdate <$> (UpdateItem
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight")))
 
 data ItemOptions = ItemOptions
-  { itemFocus :: Bool
-  , itemIds :: [String]
+  { itemIds :: [String]
   , itemFilterCost :: Maybe String
   , itemFilterWeight :: Maybe String
   , itemCommand :: Maybe ItemAction
@@ -937,8 +926,7 @@ data ItemOptions = ItemOptions
 
 itemOptions :: Parser ItemOptions
 itemOptions = ItemOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Item(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "ITEM" <> help "The ID of an Item"))
+  <$> many (strOption ( long "id" <> metavar "ITEM" <> help "The ID of an Item"))
   <*> optional (strOption ( long "filter-cost" <> metavar "COST" <> help "Filter Items by cost"))
   <*> optional (strOption ( long "filter-weight" <> metavar "WEIGHT" <> help "Filter Items by weight"))
   <*> optional (hsubparser
@@ -1007,8 +995,7 @@ updateArmor = ArmorUpdate <$> (UpdateArmor
   <*> optional (strOption ( long "type" <> metavar "TYPE" <> help "New armor type")))
 
 data ArmorOptions = ArmorOptions
-  { armorFocus :: Bool
-  , armorIds :: [String]
+  { armorIds :: [String]
   , armorFilterAc :: Maybe Int
   , armorFilterStr :: Maybe Int
   , armorFilterStealth :: Maybe Bool
@@ -1018,8 +1005,7 @@ data ArmorOptions = ArmorOptions
 
 armorOptions :: Parser ArmorOptions
 armorOptions = ArmorOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Armor(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "ARMOR" <> help "The ID of an Armor"))
+  <$> many (strOption ( long "id" <> metavar "ARMOR" <> help "The ID of an Armor"))
   <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Armor by AC"))
   <*> optional (option auto ( long "filter-str" <> metavar "INTEGER" <> help "Filter Armor by Strength"))
   <*> optional (option auto ( long "filter-stealth-disadvantage" <> metavar "BOOL" <> help "Filter Armor by stealth disadvantage"))
@@ -1086,8 +1072,7 @@ updateWeapon = WeaponUpdate <$> (UpdateWeapon
   <*> optional (strOption ( long "weapon" <> metavar "WEAPON" <> help "New weapon identifier")))
 
 data WeaponOptions = WeaponOptions
-  { weaponFocus :: Bool
-  , weaponIds :: [String]
+  { weaponIds :: [String]
   , weaponFilterDamage :: Maybe String
   , weaponFilterProperties :: Maybe String
   , weaponFilterWeapon :: Maybe String
@@ -1096,8 +1081,7 @@ data WeaponOptions = WeaponOptions
 
 weaponOptions :: Parser WeaponOptions
 weaponOptions = WeaponOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Weapon(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "WEAPON" <> help "The ID of a Weapon"))
+  <$> many (strOption ( long "id" <> metavar "WEAPON" <> help "The ID of a Weapon"))
   <*> optional (strOption ( long "filter-damage" <> metavar "DICE" <> help "Filter Weapons by damage"))
   <*> optional (strOption ( long "filter-properties" <> metavar "PROPS" <> help "Filter Weapons by properties"))
   <*> optional (strOption ( long "filter-weapon" <> metavar "WEAPON" <> help "Filter Weapons by weapon identifier"))
@@ -1155,16 +1139,14 @@ updateContainer = ContainerUpdate <$> (UpdateContainer
   <*> optional (strOption ( long "capacity" <> metavar "CAPACITY" <> help "New capacity")))
 
 data ContainerOptions = ContainerOptions
-  { containerFocus :: Bool
-  , containerIds :: [String]
+  { containerIds :: [String]
   , containerFilterCapacity :: Maybe String
   , containerCommand :: Maybe ContainerAction
   } deriving (Show, Eq)
 
 containerOptions :: Parser ContainerOptions
 containerOptions = ContainerOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Container(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "CONTAINER" <> help "The ID of a Container"))
+  <$> many (strOption ( long "id" <> metavar "CONTAINER" <> help "The ID of a Container"))
   <*> optional (strOption ( long "filter-capacity" <> metavar "CAPACITY" <> help "Filter Containers by capacity"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createContainer) (progDesc "Create Container"))
@@ -1216,8 +1198,7 @@ updateMount = MountUpdate <$> (UpdateMount
   <*> optional (option auto ( long "carrying" <> metavar "INTEGER" <> help "New carrying capacity")))
 
 data MountOptions = MountOptions
-  { mountFocus :: Bool
-  , mountIds :: [String]
+  { mountIds :: [String]
   , mountFilterSpeed :: Maybe Int
   , mountFilterCarrying :: Maybe Int
   , mountCommand :: Maybe MountAction
@@ -1225,8 +1206,7 @@ data MountOptions = MountOptions
 
 mountOptions :: Parser MountOptions
 mountOptions = MountOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Mount(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "MOUNT" <> help "The ID of a Mount"))
+  <$> many (strOption ( long "id" <> metavar "MOUNT" <> help "The ID of a Mount"))
   <*> optional (option auto ( long "filter-speed" <> metavar "INTEGER" <> help "Filter Mounts by speed"))
   <*> optional (option auto ( long "filter-carrying" <> metavar "INTEGER" <> help "Filter Mounts by carrying capacity"))
   <*> optional (hsubparser
@@ -1311,8 +1291,7 @@ updateSpell = SpellUpdate <$> (UpdateSpell
   <*> optional (strOption ( long "attack" <> metavar "ATTACK" <> help "New attack")))
 
 data SpellOptions = SpellOptions
-  { spellFocus :: Bool
-  , spellIds :: [String]
+  { spellIds :: [String]
   , spellFilterLevel :: Maybe Int
   , spellFilterRitual :: Maybe Bool
   , spellCommand :: Maybe SpellAction
@@ -1320,8 +1299,7 @@ data SpellOptions = SpellOptions
 
 spellOptions :: Parser SpellOptions
 spellOptions = SpellOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Spell(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "SPELL" <> help "The ID of a Spell"))
+  <$> many (strOption ( long "id" <> metavar "SPELL" <> help "The ID of a Spell"))
   <*> optional (option auto ( long "filter-level" <> metavar "INTEGER" <> help "Filter Spells by level"))
   <*> optional (option auto ( long "filter-ritual" <> metavar "BOOL" <> help "Filter Spells by ritual flag"))
   <*> optional (hsubparser
@@ -1370,16 +1348,14 @@ updateMoney = MoneyUpdate <$> (UpdateMoney
   <*> optional (strOption ( long "amount" <> metavar "AMOUNT" <> help "New amount")))
 
 data MoneyOptions = MoneyOptions
-  { moneyFocus :: Bool
-  , moneyIds :: [String]
+  {moneyIds :: [String]
   , moneyFilterAmount :: Maybe String
   , moneyCommand :: Maybe MoneyAction
   } deriving (Show, Eq)
 
 moneyOptions :: Parser MoneyOptions
 moneyOptions = MoneyOptions
-  <$> switch ( long "focus" <> short 'f' <> help "Select the Money entity(s) for further actions" )
-  <*> many (strOption ( long "id" <> metavar "MONEY" <> help "The ID of a Money entity"))
+  <$> many (strOption ( long "id" <> metavar "MONEY" <> help "The ID of a Money entity"))
   <*> optional (strOption ( long "filter-amount" <> metavar "AMOUNT" <> help "Filter Money by amount string"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createMoney) (progDesc "Create Money"))
