@@ -686,3 +686,4 @@ printMoney v eid = err "printMoney"
       Name -> liftIO $ hPutStrLn stderr vNameString
       Stats -> liftIO $ hPutStrLn stderr vStatsString
       All -> liftIO $ hPutStrLn stderr vAllString
+

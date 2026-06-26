@@ -165,5 +165,3 @@ main = withSocketsDo $ do
   case result of
     Left e -> print e
     Right () -> return ()
-
-  return ()

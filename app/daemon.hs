@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Main where
 
 import Network.Socket
@@ -7,44 +9,70 @@ import qualified Data.ByteString.Char8 as C
 import System.IO (readFile, withFile, IOMode (ReadWriteMode), hGetContents, hPutStrLn, stderr)
 import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
-import DC.Json (JsonValue (JsonString, JsonObject), JsonObjectMap, jsonObject, getField, writeJsonValue, ToJson (toJson))
+import DC.Json (JsonValue (JsonString, JsonObject, JsonArray), JsonObjectMap, jsonObject, getField, writeJsonValue, ToJson (toJson))
 import DC.Parse (Parser(runParser))
 import System.Directory (doesFileExist)
 import Control.Applicative (Alternative(empty))
+import DC.Types
+import Data.IORef (newIORef)
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import DC.DActions (receiveClient, readDbFile, sendDb, saveEntities, focusEntities)
+import Control.Monad.Trans.Maybe (MaybeT(runMaybeT))
+import DC.Error (throwBaseError, ErrorDetail (ParseError, JsonValidationError))
+import Data.Maybe (mapMaybe)
 
-initialJson :: M.Map String JsonValue
-initialJson = M.fromList [("entities", toJson (M.empty :: M.Map String JsonValue))]
+performAction :: String -> JsonValue -> DaemonM ()
+performAction "get" (JsonString "all") = sendDb
+performAction "save" entities = do
+  conn <- asks dConn
+  saveEntities entities
 
-performAction :: Socket -> C.ByteString -> String -> JsonValue -> IO ()
-performAction conn _ "get" (JsonString "all") = do
-  contents <- C.readFile "db.json"
-  sendAll conn contents
-performAction conn msg "save" entities = do
-  let newMap = M.insert "entities" entities initialJson
-  C.writeFile "db.json" $ C.pack $ writeJsonValue $ JsonObject newMap
-  -- print "here"
-  sendAll conn $ C.pack "SUCCESS"
-performAction _ _ _ _ = hPutStrLn stderr "unkown action"
+  liftIO $ sendAll conn $ C.pack "SUCCESS"
+performAction "focus" (JsonArray entityIds) = case traverse (\case
+  JsonString s -> Just s
+  _ -> Nothing) entityIds of
+    Just a -> do
+      conn <- asks dConn
+      focusEntities a
 
+      liftIO $ sendAll conn $ C.pack "SUCCESS"
+    Nothing -> throwBaseError $ JsonValidationError "Daemon received something other than list of strings for focus command"
+performAction _ _ = throwBaseError $ JsonValidationError "Daemon received request from client with unknown 'action' and/or 'payload' fields"
 
-handleClient :: Socket -> IO ()
-handleClient conn = do
-  msg <- recv conn 4096
-  print msg
-  case runParser jsonObject (C.unpack msg) of
-    Right (r, "") -> case performAction conn msg <$> getField "action" r <*> getField "payload" r of
-      Right result -> result
-      Left e -> print e
-    Right (_, s) -> putStrLn $ "server daemon did not parse entire client message. leftover: " <> s
-    Left e -> print e
+handleClient :: DaemonM ()
+handleClient = do
+  cJson <- receiveClient
+
+  case (M.lookup "action" cJson, M.lookup "payload" cJson) of
+    (Just (JsonString action), Just payload) -> performAction action payload
+    _ -> throwBaseError $ ParseError "Daemon received request from client without 'action' and/or 'payload' fields"
 
 main :: IO ()
 main = withSocketsDo $ do
   sock <- socket AF_UNIX Stream 0
-
+  let initState = DState {
+    focusedEntities = [],
+    recentEdits = []
+  }
+  stateRef <- newIORef initState
+  let env = DEnv {
+    dSocketPath = "/tmp/dc.sock",
+    dDbPath = "db.json",
+    dState = stateRef,
+    dConn = sock
+  }
   bind sock (SockAddrUnix "/tmp/dc.sock")
-  listen sock 1
-  
+  listen (dConn env) 1
+
   forever $ do
     (conn, _) <- accept sock
-    forkFinally (handleClient conn) (\_ -> close conn)
+    let clientEnv = env { dConn = conn }
+
+    forkFinally (runExceptT (runReaderT handleClient clientEnv)) (\r -> do
+      case r of
+        Left e -> print e
+        Right (Left e) -> print e
+        Right (Right ()) -> return ()
+      close conn)
