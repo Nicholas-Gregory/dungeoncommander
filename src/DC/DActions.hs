@@ -28,13 +28,13 @@ initialJson = M.fromList
   [ ("entities", toJson (M.empty :: M.Map String JsonValue))
   , ("focus", toJson ([] :: [String]))]
 
-receiveClient :: DaemonM JsonValue
+receiveClient :: DaemonM JsonObjectMap
 receiveClient = do
   conn <- asks dConn
   msg <- liftIO $ recv conn 4096
 
   case runParser jsonObject (C.unpack msg) of
-    Right (r, "") -> return $ JsonObject r
+    Right (r, "") -> return r
     _ -> throwBaseError $ ParseError "Daemon encountered parsing error in message received from client"
 
 readDbFile :: DaemonM String
@@ -48,22 +48,21 @@ readDbFile = do
 
       return $ C.unpack contents
     else do
-      let newJson = JsonObject initialJson
-      writeDb newJson
+      writeDb initialJson
 
-      return $ writeJsonValue newJson
+      return $ writeJsonValue $ JsonObject initialJson
 
-readDb :: DaemonM JsonValue
+readDb :: DaemonM JsonObjectMap
 readDb = do
   file <- readDbFile
 
   case runParser jsonObject file of
-    Right (r, "") -> return $ JsonObject r
+    Right (r, "") -> return r
     _ -> throwBaseError $ ParseError "Daemon encountered parsing error in raw database file"
 
-writeDb :: JsonValue -> DaemonM ()
+writeDb :: JsonObjectMap -> DaemonM ()
 writeDb json = do
-  let jsonStr = writeJsonValue json
+  let jsonStr = writeJsonValue $ JsonObject json
 
   liftIO $ C.writeFile "db.json" $ C.pack jsonStr
 
@@ -76,14 +75,14 @@ sendDb = do
 
 saveEntities :: JsonValue -> DaemonM ()
 saveEntities newEntities = do
-  (JsonObject oldMap) <- readDb
+  oldMap <- readDb
   let newMap = M.insert "entities" newEntities oldMap
 
-  writeDb (JsonObject newMap)
+  writeDb newMap
 
 focusEntities :: [String] -> DaemonM ()
 focusEntities fEntities = do
-  (JsonObject db) <- readDb
+  db <- readDb
 
   case M.lookup "focus" db of
     Just (JsonArray f) -> do
@@ -91,6 +90,6 @@ focusEntities fEntities = do
             JsonString s -> Just s
             _ -> Nothing) f
 
-      writeDb $ JsonObject $ M.insert "focus" (toJson newF) db
+      writeDb $ M.insert "focus" (toJson newF) db
     _ -> undefined
 
