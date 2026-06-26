@@ -21,7 +21,10 @@ module DC.Types (
   EntityInfo(..),
   VerbosityLevel(..),
   WeaponProperty(..),
-  WeaponProperties(..)
+  WeaponProperties(..),
+  DEnv(..),
+  DState(..),
+  DaemonM
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField)
 import Data.List (find)
@@ -33,6 +36,8 @@ import Control.Monad.Reader
 import DC.Error
 import DC.Parse
 import Control.Applicative (Alternative((<|>)), optional)
+import Control.Monad.Except (ExceptT)
+import Network.Socket (Socket)
 
 data GameState = GameState 
   { currentScene :: String,
@@ -46,6 +51,19 @@ data Env = Env
   , state :: IORef GameState
   , gen :: StdGen
   }
+
+data DState = DState
+  { focusedEntities :: [String]
+  , recentEdits :: [M.Map String Entity]
+  }
+
+type DaemonM a = ReaderT DEnv (ExceptT AppError IO) a
+
+data DEnv = DEnv
+  { dSocketPath :: FilePath 
+  , dDbPath :: FilePath
+  , dState :: IORef DState
+  , dConn :: Socket}
 
 data VerbosityLevel
   = Name
