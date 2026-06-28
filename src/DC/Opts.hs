@@ -75,6 +75,7 @@ data RootOptions = RootOptions
   { rootSave :: Bool
   , rootVerbosity :: VerbosityLevel
   , focus :: Bool
+  , noOutput :: Bool
   , rootCommand :: Maybe Command
   }
 
@@ -97,6 +98,10 @@ rootParser = RootOptions
     (long "focus"
     <> short 'f'
     <> help "Use to save the selected entity/entities as in focus, to use in further commands")
+  <*> switch
+    (long "no-output"
+    <> short 'o'
+    <> help "Use this flag to turn off stdout output (for seeing the human-readable output of a command without piping it)")
   <*> optional (hsubparser
     ( command "scene" (info (helper <*> (SceneCommand <$> sceneAction)) 
       (progDesc "Select a Scene, or manage Scenes"))
