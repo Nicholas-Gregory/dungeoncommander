@@ -10,7 +10,6 @@ module DC.Opts (
  ObjectOptions(..),
  TrapOptions(..),
  ItemOptions(..),
- ArmorOptions(..),
  WeaponOptions(..),
  ContainerOptions(..),
  MountOptions(..),
@@ -21,7 +20,14 @@ module DC.Opts (
  ObjectAction(..),
  CreateObject(..),
  TrapAction(..),
- CreateTrap(..)
+ CreateTrap(..),
+ ItemAction(..),
+ CreateItem(..),
+ ArmorOptions(..),
+ ArmorAction(..),
+ CreateArmor(..),
+ WeaponAction(..),
+ CreateWeapon(..)
 ) where
 
 import Options.Applicative
@@ -1042,8 +1048,8 @@ data CreateWeapon = CreateWeapon
   , createWeaponCost :: String
   , createWeaponWeight :: String
   , createWeaponDamage :: String
-  , createWeaponProperties :: Maybe String
-  , createWeaponWeapon :: Maybe String
+  , createWeaponProperties :: [Either AppError WeaponProperty]
+  , createWeaponWeapon :: Either AppError Weapon
   } deriving (Show, Eq)
 
 createWeapon :: Parser WeaponAction
@@ -1053,8 +1059,16 @@ createWeapon = WeaponCreate <$> (CreateWeapon
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
   <*> strOption ( long "damage" <> metavar "DICE" <> help "Damage expression")
-  <*> optional (strOption ( long "properties" <> metavar "PROPS" <> help "Properties list (comma separated)"))
-  <*> optional (strOption ( long "weapon" <> metavar "WEAPON" <> help "Weapon identifier")))
+  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProperty) <$> strOption
+    (long "weapon-property"
+    <> long "wp"
+    <> metavar "WEAPON-PROPERTY"
+    <> help "A weapon property from the D&d 5e weapon property table. Can use multiple of this option"))
+  <*> ((\s -> fromValue (JsonString s) :: Either AppError Weapon) <$> strOption 
+    ( long "weapon" 
+    <> short 'w'
+    <> metavar "WEAPON" 
+    <> help "Weapon identifier from D&D 5e weapon table, all lowercase")))
 
 data DeleteWeapon = DeleteWeapon { deleteWeaponId :: Maybe String } deriving (Show, Eq)
 

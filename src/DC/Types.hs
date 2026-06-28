@@ -25,7 +25,8 @@ module DC.Types (
   DEnv(..),
   DState(..),
   DaemonM,
-  Output(..)
+  Output(..),
+  ItemInfo(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField, JsonObjectMap)
 import Data.List (find)
@@ -504,7 +505,7 @@ data Entity =
   Weapon {
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
-    damage :: (String, String),
+    weaponDamage :: String,
     properties :: WeaponProperties,
     weapon :: Weapon
   } |

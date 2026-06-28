@@ -507,14 +507,14 @@ printTrap v eid = err "printTrap"
         eDetect = detectDc entity
         eAttack = attackBonus entity
         eSave = saveDc entity
-        (d1, d2) = damage entity
+        d = trapDamage entity
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString
           <> ", Position: (" <> show x <> ", " <> show y <> ")"
           <> ", Detect DC: " <> show eDetect
           <> ", Attack Bonus: " <> show eAttack
           <> ", Save DC: " <> show eSave
-          <> ", Damage: (" <> d1 <> ", " <> d2 <> ")"
+          <> ", Damage: " <> d
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
     case v of
@@ -582,13 +582,13 @@ printWeapon v eid = err "printWeapon"
         eName = name info
         (EntityChildren eChildren) = children info
         iiJson = writeJsonValue (toJson (itemInfo entity))
-        (d1, d2) = damage entity
+        d = weaponDamage entity
         props = properties entity
         w = weapon entity
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString
           <> ", ItemInfo: " <> iiJson
-          <> ", Damage: (" <> d1 <> ", " <> d2 <> ")"
+          <> ", Damage: (" <> d
           <> ", Properties: " <> foldl' (++) "" (map (\p -> case toJson p of 
             JsonString s -> s
             _ -> "") (case props of WeaponProperties a -> a))

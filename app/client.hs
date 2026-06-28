@@ -178,6 +178,55 @@ runApp opts sock = do
               }
 
               saveEntity id entity
+    RootOptions _ _ _ _
+      (Just (ItemCommand
+        (ItemOptions _ _ _
+          (Just (ItemCreate
+            (CreateItem id eName c w)))))) -> do
+              let info = EntityInfo { name = eName, children = EntityChildren [] }
+              let iInfo = ItemInfo { cost = c, weight = w}
+              let entity = Item {
+                entityInfo = info,
+                itemInfo = iInfo
+              } 
+
+              saveEntity id entity
+    RootOptions _ _ _ _
+      (Just (ArmorCommand
+        (ArmorOptions _ _ _ _ _
+          (Just (ArmorCreate
+            (CreateArmor id eName c w ac str sd t)))))) -> do
+            let info = EntityInfo { name = eName, children = EntityChildren [] }
+            let iInfo = ItemInfo { cost = c, weight = w }
+            let entity = Armor {
+              entityInfo = info,
+              itemInfo = iInfo,
+              ac = ac,
+              str = str,
+              stealthDisadvantage = sd,
+              armorType = t
+            }
+
+            saveEntity id entity
+    RootOptions _ _ _ _
+      (Just (WeaponCommand
+        (WeaponOptions _ _ _ _
+          (Just (WeaponCreate
+            (CreateWeapon id eName c weight d p w)))))) -> do
+              case w of 
+                Left e -> throwError e
+                Right weapon -> do
+                  let info = EntityInfo { name = eName, children = EntityChildren [] }
+                  let iInfo = ItemInfo { cost = c, weight = weight }
+                  let entity = Weapon {
+                    entityInfo = info,
+                    itemInfo = iInfo,
+                    weaponDamage = d,
+                    properties = WeaponProperties $ rights p,
+                    weapon = weapon
+                  }
+
+                  saveEntity id entity
     RootOptions _ _ _  _(Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 
