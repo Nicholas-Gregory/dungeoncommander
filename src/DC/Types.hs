@@ -486,7 +486,7 @@ data Entity =
     detectDc :: Int,
     attackBonus :: Int,
     saveDc :: Int,
-    damage :: (String, String),
+    trapDamage :: String,
     position ::  (Int, Int)
   } |
   Item {

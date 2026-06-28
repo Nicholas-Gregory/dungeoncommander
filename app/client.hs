@@ -39,84 +39,79 @@ runApp opts sock = do
       (Just (SceneCommand 
         (SceneOptions [] Nothing Nothing False False False Nothing))) -> do
           scenes <- getScenes
-          stateRef <- asks state
-          gameState <- liftIO $ readIORef stateRef
-          let oldOutput = output gameState
-          let newOutEntities = scenes
-          let newOutput = oldOutput { outEntities = newOutEntities }
 
-          liftIO $ atomicModifyIORef' stateRef $ \st ->
-            (st { output = newOutput}, ())
-
+          setOutputEntities scenes
           traverse_ (printScene verbosity) $ M.keys scenes
           
     RootOptions _ verbosity _ _
       (Just (ActorCommand
         (ActorOptions [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
           actors <- getActors
-          stateRef <- asks state
-          gameState <- liftIO $ readIORef stateRef
-          let oldOutput = output gameState
-          let newOutEntities = actors
-          let newOutput = oldOutput { outEntities = newOutEntities }
 
-          liftIO $ atomicModifyIORef' stateRef $ \st ->
-            (st { output = newOutput }, ())
-
+          setOutputEntities actors
           traverse_ (printActor verbosity) $ M.keys actors
     RootOptions _ verbosity _ _
       (Just (ObjectCommand 
         (ObjectOptions [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
           objects <- getObjects
 
+          setOutputEntities objects
           traverse_ (printObject verbosity) $ M.keys objects
     RootOptions _ verbosity _ _
       (Just (TrapCommand 
         (TrapOptions [] Nothing Nothing Nothing Nothing Nothing Nothing))) -> do
           traps <- getTraps
 
+          setOutputEntities traps
           traverse_ (printTrap verbosity) $ M.keys traps
     RootOptions _ verbosity _ _
       (Just (ItemCommand 
         (ItemOptions [] Nothing Nothing Nothing))) -> do
           items <- getItems
 
+          setOutputEntities items
           traverse_ (printItem verbosity) $ M.keys items
     RootOptions _ verbosity _ _
       (Just (ArmorCommand 
         (ArmorOptions [] Nothing Nothing Nothing Nothing Nothing))) -> do
           armors <- getArmors
 
+          setOutputEntities armors
           traverse_ (printArmor verbosity) $ M.keys armors
     RootOptions _ verbosity _ _
       (Just (WeaponCommand 
         (WeaponOptions [] Nothing Nothing Nothing Nothing))) -> do
           weapons <- getWeapons
 
+          setOutputEntities weapons
           traverse_ (printWeapon verbosity) $ M.keys weapons
     RootOptions _ verbosity _ _
       (Just (ContainerCommand 
         (ContainerOptions [] Nothing Nothing))) -> do
           containers <- getContainers
 
+          setOutputEntities containers
           traverse_ (printContainer verbosity) $ M.keys containers
     RootOptions _ verbosity _ _
       (Just (MountCommand 
         (MountOptions [] Nothing Nothing Nothing))) -> do
           mounts <- getMounts
 
+          setOutputEntities mounts
           traverse_ (printMount verbosity) $ M.keys mounts
     RootOptions _ verbosity _ _
       (Just (SpellCommand 
         (SpellOptions [] Nothing Nothing Nothing))) -> do
           spells <- getSpells
 
+          setOutputEntities spells
           traverse_ (printSpell verbosity) $ M.keys spells
     RootOptions _ verbosity _ _
       (Just (MoneyCommand 
         (MoneyOptions [] Nothing Nothing))) -> do
           monies <- getMoney
 
+          setOutputEntities monies
           traverse_ (printMoney verbosity) $ M.keys monies
     RootOptions _ _ _ _
       (Just (SceneCommand 
@@ -152,6 +147,37 @@ runApp opts sock = do
       }
 
       saveEntity id entity
+    RootOptions _ _ _ _
+      (Just (ObjectCommand
+        (ObjectOptions _ _ _ _ _ _
+          (Just (ObjectCreate
+            (CreateObject id eName ac mHp cHp x y)))))) -> do
+              let info = EntityInfo { name = eName, children = EntityChildren [] }
+              let entity = Object {
+                entityInfo = info,
+                position = (x, y),
+                ac = ac,
+                maxHp = mHp,
+                currentHp = cHp
+              }
+
+              saveEntity id entity
+    RootOptions _ _ _ _
+      (Just (TrapCommand
+        (TrapOptions _ _ _ _ _ _ 
+          (Just (TrapCreate
+            (CreateTrap id eName dDc ab sDc d x y)))))) -> do
+              let info = EntityInfo { name = eName, children = EntityChildren [] }
+              let entity = Trap {
+                entityInfo = info,
+                position = (x, y),
+                detectDc = dDc,
+                attackBonus = ab,
+                saveDc = sDc,
+                trapDamage = d
+              }
+
+              saveEntity id entity
     RootOptions _ _ _  _(Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 

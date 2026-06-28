@@ -17,7 +17,11 @@ module DC.Opts (
  SpellOptions(..),
  MoneyOptions(..),
  ActorAction(..),
- CreateActor(..)
+ CreateActor(..),
+ ObjectAction(..),
+ CreateObject(..),
+ TrapAction(..),
+ CreateTrap(..)
 ) where
 
 import Options.Applicative
@@ -682,6 +686,7 @@ data CreateObject = CreateObject
   , createObjectName :: String
   , createObjectAc :: Int
   , createObjectMaxHp :: Int
+  , createObjectCurrentHp :: Int
   , createObjectX :: Int
   , createObjectY :: Int
   } deriving (Show, Eq)
@@ -705,6 +710,10 @@ createObject = ObjectCreate <$> (CreateObject
     ( long "max-hp"
     <> metavar "INTEGER"
     <> help "The maximum HP of the new Object")
+  <*> option auto
+    ( long "current-hp"
+    <> metavar "INTEGER"
+    <> help "The current HP of the new Object")
   <*> option auto
     ( short 'x'
     <> metavar "INTEGER"

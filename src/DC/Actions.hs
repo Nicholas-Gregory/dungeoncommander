@@ -47,7 +47,8 @@ module DC.Actions (
   printMount,
   printSpell,
   printMoney,
-  sendFocusToDaemon
+  sendFocusToDaemon,
+  setOutputEntities
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -700,3 +701,12 @@ printMoney v eid = err "printMoney"
       Stats -> liftIO $ hPutStrLn stderr vStatsString
       All -> liftIO $ hPutStrLn stderr vAllString
 
+setOutputEntities :: M.Map String Entity -> AppM Env ()
+setOutputEntities entities = err "setOutputEntities" [("new_entities", show entities)] $ do
+  stateRef <- asks state
+  gameState <- liftIO $ readIORef stateRef
+  let oldOutput = output gameState
+  let newOutput = oldOutput { outEntities = entities }
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    (st { output = newOutput }, ())
