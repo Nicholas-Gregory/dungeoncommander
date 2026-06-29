@@ -26,7 +26,8 @@ module DC.Types (
   DState(..),
   DaemonM,
   Output(..),
-  ItemInfo(..)
+  ItemInfo(..),
+  DamageType(..)
 ) where
 import DC.Json (ToJson (toJson), JsonValue (JsonString, JsonObject, JsonArray), IsJson (fromValue), FromJson (fromJson), getField, JsonObjectMap)
 import Data.List (find)
@@ -40,6 +41,7 @@ import DC.Parse
 import Control.Applicative (Alternative((<|>)), optional)
 import Control.Monad.Except (ExceptT)
 import Network.Socket (Socket)
+import Data.Char
 
 data Output = Output
   { outEntities :: M.Map String Entity
@@ -417,6 +419,84 @@ instance IsJson WeaponProficiency where
   fromValue (JsonString "martial") = Right Martial
   fromValue v = Specific <$> fromValue v
 
+data DamageType
+  = Acid
+  | Bludgeoning
+  | Cold
+  | Fire
+  | Force
+  | Lightning
+  | Necrotic
+  | Piercing
+  | Poison
+  | Psychic
+  | Radiant
+  | Slashing
+  | Thunder
+  deriving (Show, Eq)
+
+instance ToJson DamageType where
+  toJson :: DamageType -> JsonValue
+  toJson Acid = JsonString "acid"
+  toJson Bludgeoning = JsonString "bludgeoning"
+  toJson Cold = JsonString "cold"
+  toJson Fire = JsonString "fire"
+  toJson Force = JsonString "force"
+  toJson Lightning = JsonString "lightning"
+  toJson Necrotic = JsonString "necrotic"
+  toJson Piercing = JsonString "piercing"
+  toJson Poison = JsonString "poison"
+  toJson Psychic = JsonString "psychic"
+  toJson Radiant = JsonString "radiant"
+  toJson Slashing = JsonString "slashing"
+  toJson Thunder = JsonString "thunder"
+
+instance IsJson DamageType where
+  fromValue :: JsonValue -> Either AppError DamageType
+  fromValue (JsonString "acid") = Right Acid
+  fromValue (JsonString "bludgeoning") = Right Bludgeoning
+  fromValue (JsonString "cold") = Right Cold
+  fromValue (JsonString "fire") = Right Fire
+  fromValue (JsonString "force") = Right Force
+  fromValue (JsonString "lightning") = Right Lightning
+  fromValue (JsonString "necrotic") = Right Necrotic
+  fromValue (JsonString "piercing") = Right Piercing
+  fromValue (JsonString "poison") = Right Poison
+  fromValue (JsonString "psychic") = Right Psychic
+  fromValue (JsonString "radiant") = Right Radiant
+  fromValue (JsonString "slashing") = Right Slashing
+  fromValue (JsonString "thunder") = Right Thunder
+  fromValue (JsonString s) = Left $
+    newBaseError
+    $ ParseError
+    $ "Expected valid D&D 5e damage type string, found: "
+    <> s
+  fromValue v = Left
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON string for DamageType, found: "
+    <> show v
+
+instance ToJson (String, DamageType) where
+  toJson :: (String, DamageType) -> JsonValue
+  toJson (dice, dType) = JsonArray [JsonString dice, toJson dType]
+
+instance IsJson (String, DamageType) where
+  fromValue :: JsonValue -> Either AppError (String, DamageType)
+  fromValue (JsonArray [JsonString dice, dType]) = case fromValue dType of
+    Right dType' -> Right (dice, dType')
+    Left e -> Left e
+  fromValue (JsonArray [v, _]) = Left
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON String for dice expression in damage statement, found: "
+    <> show v
+  fromValue v = Left
+    $ newBaseError
+    $ JsonValidationError
+    $ "Expected JSON Array for damage statement, found: "
+    <> show v
+
 data EntityChildType =
   ActorLocation |
   ObjectLocation |
@@ -505,7 +585,7 @@ data Entity =
   Weapon {
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
-    weaponDamage :: String,
+    weaponDamage :: (String, DamageType),
     properties :: WeaponProperties,
     weapon :: Weapon
   } |
@@ -719,7 +799,7 @@ instance ToJson Entity where
       ("type", toJson "weapon"),
       ("entityInfo", toJson eInfo),
       ("itemInfo", toJson iInfo),
-      ("damage", toJson d),
+      ("weaponDamage", toJson d),
       ("properties", toJson props),
       ("weapon", toJson weapon)
     ]
@@ -810,7 +890,7 @@ instance FromJson Entity where
       "weapon" -> Weapon
         <$> getField "entityInfo" o
         <*> getField "itemInfo" o
-        <*> getField "damage" o
+        <*> getField "weaponDamage" o
         <*> getField "properties" o
         <*> getField "weapon" o
       "container" -> Container

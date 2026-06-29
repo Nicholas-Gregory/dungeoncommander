@@ -27,7 +27,15 @@ module DC.Opts (
  ArmorAction(..),
  CreateArmor(..),
  WeaponAction(..),
- CreateWeapon(..)
+ CreateWeapon(..),
+ ContainerAction(..),
+ CreateContainer(..),
+ MountAction(..),
+ CreateMount(..),
+ CreateSpell(..),
+ SpellAction(..),
+ MoneyAction(..),
+ CreateMoney(..)
 ) where
 
 import Options.Applicative
@@ -1048,6 +1056,7 @@ data CreateWeapon = CreateWeapon
   , createWeaponCost :: String
   , createWeaponWeight :: String
   , createWeaponDamage :: String
+  , createWeaponDamageType :: Either AppError DamageType
   , createWeaponProperties :: [Either AppError WeaponProperty]
   , createWeaponWeapon :: Either AppError Weapon
   } deriving (Show, Eq)
@@ -1059,6 +1068,11 @@ createWeapon = WeaponCreate <$> (CreateWeapon
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
   <*> strOption ( long "damage" <> metavar "DICE" <> help "Damage expression")
+  <*> ((\s -> fromValue (JsonString s) :: Either AppError DamageType) <$> strOption
+    ( long "damage-type"
+    <> long "dt"
+    <> metavar "DAMAGE-TYPE"
+    <> help "A damage type from the D&D 5e basic rules damage type table, all lowercase"))
   <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProperty) <$> strOption
     (long "weapon-property"
     <> long "wp"

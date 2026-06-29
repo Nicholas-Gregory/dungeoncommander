@@ -27,12 +27,15 @@ import Options.Applicative ( execParser )
 import DC.Opts
 import Data.Foldable (traverse_)
 import Data.Either (rights)
+import DC.Json
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
   addrPath <- asks socketPath
   json <- getJson sock
   initEntities json
+  entities <- getEntities
+  setOutputEntities entities
 
   case opts of
     RootOptions _ verbosity _ _
@@ -122,6 +125,7 @@ runApp opts sock = do
       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
       saveEntity id entity
+      addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (ActorCommand
         (ActorOptions _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
@@ -147,6 +151,7 @@ runApp opts sock = do
       }
 
       saveEntity id entity
+      addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (ObjectCommand
         (ObjectOptions _ _ _ _ _ _
@@ -162,6 +167,7 @@ runApp opts sock = do
               }
 
               saveEntity id entity
+              addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (TrapCommand
         (TrapOptions _ _ _ _ _ _ 
@@ -178,6 +184,7 @@ runApp opts sock = do
               }
 
               saveEntity id entity
+              addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (ItemCommand
         (ItemOptions _ _ _
@@ -191,6 +198,7 @@ runApp opts sock = do
               } 
 
               saveEntity id entity
+              addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (ArmorCommand
         (ArmorOptions _ _ _ _ _
@@ -208,25 +216,94 @@ runApp opts sock = do
             }
 
             saveEntity id entity
+            addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (WeaponCommand
         (WeaponOptions _ _ _ _
           (Just (WeaponCreate
-            (CreateWeapon id eName c weight d p w)))))) -> do
+            (CreateWeapon id eName c weight d dt p w)))))) -> do
               case w of 
                 Left e -> throwError e
                 Right weapon -> do
-                  let info = EntityInfo { name = eName, children = EntityChildren [] }
-                  let iInfo = ItemInfo { cost = c, weight = weight }
-                  let entity = Weapon {
-                    entityInfo = info,
-                    itemInfo = iInfo,
-                    weaponDamage = d,
-                    properties = WeaponProperties $ rights p,
-                    weapon = weapon
-                  }
+                  case dt of
+                    Left e -> throwError e
+                    Right dType -> do
+                      let info = EntityInfo { name = eName, children = EntityChildren [] }
+                      let iInfo = ItemInfo { cost = c, weight = weight }
+                      let entity = Weapon {
+                        entityInfo = info,
+                        itemInfo = iInfo,
+                        weaponDamage = (d, dType),
+                        properties = WeaponProperties $ rights p,
+                        weapon = weapon
+                      }
 
-                  saveEntity id entity
+                      saveEntity id entity
+                      addEntityToOutputEntities id entity
+    RootOptions _ _ _ _
+      (Just (ContainerCommand
+        (ContainerOptions _ _ 
+          (Just (ContainerCreate
+            (CreateContainer id eName cost weight capacity)))))) -> do
+              let info = EntityInfo { name = eName, children = EntityChildren [] }
+              let iInfo = ItemInfo { cost = cost, weight = weight }
+              let entity = Container {
+                entityInfo = info,
+                itemInfo = iInfo,
+                capacity = capacity
+              }
+
+              saveEntity id entity
+              addEntityToOutputEntities id entity
+    RootOptions _ _ _ _
+      (Just (MountCommand
+        (MountOptions _ _ _
+          (Just (MountCreate
+            (CreateMount id name speed carrying)))))) -> do
+              let info = EntityInfo { name = name, children = EntityChildren [] }
+              let entity = Mount {
+                entityInfo = info,
+                speed = speed,
+                carryingCapacity = carrying
+              }
+
+              saveEntity id entity
+              addEntityToOutputEntities id entity
+    RootOptions _ _ _ _
+      (Just (SpellCommand
+        (SpellOptions _ _ _
+          (Just (SpellCreate
+            (CreateSpell id name level ritual action range components duration targets aoe save attack)))))) -> do
+              let info = EntityInfo { name = name, children = EntityChildren [] }
+              let entity = Spell {
+                entityInfo = info,
+                level = level,
+                ritual = ritual,
+                action = action,
+                range = range,
+                components = components,
+                duration = duration,
+                targets = targets,
+                aoe = aoe,
+                save = save,
+                attack = attack
+              }
+
+              saveEntity id entity
+              addEntityToOutputEntities id entity
+    RootOptions _ _ _ _
+      (Just (MoneyCommand
+        (MoneyOptions _ _
+          (Just (MoneyCreate
+            (CreateMoney id name amount)))))) -> do
+              let info = EntityInfo { name = name, children = EntityChildren [] }
+              let entity = Money {
+                entityInfo = info,
+                amount = amount
+              }
+
+              saveEntity id entity
+              addEntityToOutputEntities id entity
     RootOptions _ _ _  _(Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 

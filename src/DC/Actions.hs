@@ -48,7 +48,8 @@ module DC.Actions (
   printSpell,
   printMoney,
   sendFocusToDaemon,
-  setOutputEntities
+  setOutputEntities,
+  addEntityToOutputEntities
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -165,7 +166,7 @@ saveEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", s
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
     let newEntities = M.insert k e (entities st)
-    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st}, ())
+    in (st { entities=newEntities }, ())
 
 addChild :: EntityChildType -> String -> String -> AppM Env ()
 addChild t p c = err "addChild"
@@ -184,7 +185,7 @@ addChild t p c = err "addChild"
                    EntityChildren xs -> EntityChildren (EntityChild { childType = t, childId = c } : xs)
              in parent { entityInfo = oldInfo { children = newChildren } }
           ) p (entities st)
-    in (GameState {commits=commits st, entities=newEntities, currentScene=currentScene st}, ())
+    in (st { entities=newEntities }, ())
 
 removeChild :: EntityChildType -> String -> String -> AppM Env ()
 removeChild t p c = err "removeChild"
@@ -588,7 +589,7 @@ printWeapon v eid = err "printWeapon"
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString
           <> ", ItemInfo: " <> iiJson
-          <> ", Damage: (" <> d
+          <> ", Damage: " <> show d
           <> ", Properties: " <> foldl' (++) "" (map (\p -> case toJson p of 
             JsonString s -> s
             _ -> "") (case props of WeaponProperties a -> a))
@@ -710,3 +711,13 @@ setOutputEntities entities = err "setOutputEntities" [("new_entities", show enti
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
     (st { output = newOutput }, ())
+
+addEntityToOutputEntities :: String -> Entity -> AppM Env ()
+addEntityToOutputEntities id entity = err "addEntityToOutputEntities" [("entity", show entity)] $ do
+  stateRef <- asks state
+  gameState <- liftIO $ readIORef stateRef
+  let oldOutput = output gameState
+  let oldEntities = outEntities oldOutput
+  let newEntities = M.insert id entity oldEntities
+
+  setOutputEntities newEntities
