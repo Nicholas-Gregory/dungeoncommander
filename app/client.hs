@@ -22,12 +22,13 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types 
-import DC.Error (AppM, AppError (AppError))
+import DC.Error (AppM, AppError (AppError), throwBaseError, ErrorDetail (OtherError))
 import Options.Applicative ( execParser )
 import DC.Opts
 import Data.Foldable (traverse_)
 import Data.Either (rights)
 import DC.Json
+import Data.Maybe (fromMaybe)
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -304,6 +305,33 @@ runApp opts sock = do
 
               saveEntity id entity
               addEntityToOutputEntities id entity
+    RootOptions _ _ _ _
+      (Just (SceneCommand
+        (SceneOptions ids Nothing Nothing False False False
+          (Just (SceneUpdate
+            (UpdateScene nId eName x y)))))) -> do
+              scenes <- getScenes
+              
+              traverse_ (\id -> do
+                case M.lookup id scenes of
+                  Just s -> do
+                    let newId = fromMaybe id nId
+                    let newName = fromMaybe (name $ entityInfo s) eName
+                    let newX = fromMaybe (fst $ dimensions s) x
+                    let newY = fromMaybe (snd $ dimensions s) y
+                    let newInfo = (entityInfo s) { name = newName }
+                    let newScene = Scene {
+                      entityInfo = newInfo,
+                      dimensions = (newX, newY)
+                    } 
+
+                    saveEntity newId newScene
+
+                    when (id /= newId) $ deleteEntity id
+                  Nothing -> throwBaseError 
+                    $ OtherError 
+                    $ "There is no Scene with ID " <> "'" <> id <> "'"
+                ) ids
     RootOptions _ _ _  _(Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 

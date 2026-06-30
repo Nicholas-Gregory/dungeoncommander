@@ -49,7 +49,9 @@ module DC.Actions (
   printMoney,
   sendFocusToDaemon,
   setOutputEntities,
-  addEntityToOutputEntities
+  addEntityToOutputEntities,
+  setEntities,
+  deleteEntity
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -72,6 +74,7 @@ import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJs
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
 import qualified Data.Map as M
+import Data.IntMap (delete)
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -721,3 +724,16 @@ addEntityToOutputEntities id entity = err "addEntityToOutputEntities" [("entity"
   let newEntities = M.insert id entity oldEntities
 
   setOutputEntities newEntities
+
+setEntities :: M.Map String Entity -> AppM Env ()
+setEntities entities = err "setEntities" [("entities", show entities)] $ do
+  stateRef <- asks state
+
+  liftIO $ atomicModifyIORef' stateRef $ \st ->
+    (st { entities = entities }, ())
+
+deleteEntity :: String -> AppM Env ()
+deleteEntity id = err "deleteEntity" [("entity_id", show id)] $ do
+  entities <- getEntities
+  
+  setEntities $ M.delete id entities

@@ -35,7 +35,8 @@ module DC.Opts (
  CreateSpell(..),
  SpellAction(..),
  MoneyAction(..),
- CreateMoney(..)
+ CreateMoney(..),
+ UpdateScene(..)
 ) where
 
 import Options.Applicative
@@ -373,9 +374,10 @@ data UpdateScene = UpdateScene
 updateScene :: Parser SceneAction
 updateScene = SceneUpdate <$> (UpdateScene
   <$> optional (strOption
-    ( long "id"
+    ( long "new-id"
+    <> long "nid"
     <> metavar "ID"
-    <> help "The ID of the Scene to update"))
+    <> help "The new ID of the Scene"))
   <*> optional (strOption
     ( long "name"
     <> short 'n'
