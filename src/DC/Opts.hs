@@ -36,7 +36,7 @@ module DC.Opts (
  SpellAction(..),
  MoneyAction(..),
  CreateMoney(..),
- UpdateScene(..)
+ UpdateScene(..),
 ) where
 
 import Options.Applicative
@@ -235,9 +235,6 @@ data SceneOptions = SceneOptions
   { sceneIds :: [String]
   , sceneFilterX :: Maybe Int
   , sceneFilterY :: Maybe Int
-  , sceneEntities :: Bool
-  , sceneActors :: Bool
-  , sceneObjects :: Bool
   , sceneCommand :: Maybe SceneAction
   } deriving (Show, Eq)
 
@@ -255,15 +252,6 @@ sceneAction = SceneOptions
     (long "filter-y"
     <> metavar "INTEGER"
     <> help "Filter Scenes by Y dimension"))
-  <*> switch
-    (long "entities"
-    <> help "Use all the Entities in the Scene for the action")
-  <*> switch
-    (long "actors"
-    <> help "Use the Actors in the Scene for the action")
-  <*> switch
-    (long "objects"
-    <> help "Use the Objects in the Scene for the action")
   <*> optional (hsubparser
     (command "update" (info (helper <*> updateScene) 
       (progDesc "Directly update values for a particular Scene"))

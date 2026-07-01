@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Main where
 
 import System.Environment (getArgs)
@@ -29,6 +31,7 @@ import Data.Foldable (traverse_)
 import Data.Either (rights)
 import DC.Json
 import Data.Maybe (fromMaybe)
+import Data.Function ((&))
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -41,12 +44,42 @@ runApp opts sock = do
   case opts of
     RootOptions _ verbosity _ _
       (Just (SceneCommand 
-        (SceneOptions [] Nothing Nothing False False False Nothing))) -> do
-          scenes <- getScenes
+        (SceneOptions ids filterX filterY command))) -> do
+          entities <- getEntitiesByIds ids
+          let filteredScenes = entities
+                & M.filter (\case
+                      Scene {} -> True
+                      _ -> False)
+                & M.filter (\s -> maybe True (\fx -> fx == fst (dimensions s)) filterX)
+                & M.filter (\s -> maybe True (\fy -> fy == snd (dimensions s)) filterY)
 
-          setOutputEntities scenes
-          traverse_ (printScene verbosity) $ M.keys scenes
-          
+          setOutputEntities filteredScenes
+
+          case command of
+            Nothing -> traverse_ (printScene verbosity) $ M.keys filteredScenes
+            Just (SceneCreate
+              (CreateScene id sName x y)) -> do
+                let info = EntityInfo { name = sName, children = EntityChildren [] }
+                let entity = Scene { entityInfo = info, dimensions = (x, y) }
+
+                saveEntity id entity
+                addEntityToOutputEntities id entity
+            Just (SceneUpdate
+              (UpdateScene nId sName x y)) -> do
+                traverse_ (\(id, s) -> do
+                  let newId = fromMaybe id nId
+                  let newName = fromMaybe (name $ entityInfo s) sName
+                  let newX = fromMaybe (fst $ dimensions s) x
+                  let newY = fromMaybe (snd $ dimensions s) y
+                  let newInfo = (entityInfo s) { name = newName }
+                  let newScene = Scene {
+                    entityInfo = newInfo,
+                    dimensions = (newX, newY)
+                  } 
+
+                  saveEntity newId newScene
+
+                  when (id /= newId) $ deleteEntity id) $ M.toList filteredScenes
     RootOptions _ verbosity _ _
       (Just (ActorCommand
         (ActorOptions [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
@@ -117,16 +150,6 @@ runApp opts sock = do
 
           setOutputEntities monies
           traverse_ (printMoney verbosity) $ M.keys monies
-    RootOptions _ _ _ _
-      (Just (SceneCommand 
-        (SceneOptions _ _ _ _ _ _ 
-          (Just (SceneCreate 
-            (CreateScene id eName x y)))))) -> do
-      let info = EntityInfo { name = eName, children = EntityChildren [] }
-      let entity = Scene { entityInfo = info, dimensions = (x, y) }
-
-      saveEntity id entity
-      addEntityToOutputEntities id entity
     RootOptions _ _ _ _
       (Just (ActorCommand
         (ActorOptions _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
@@ -305,33 +328,6 @@ runApp opts sock = do
 
               saveEntity id entity
               addEntityToOutputEntities id entity
-    RootOptions _ _ _ _
-      (Just (SceneCommand
-        (SceneOptions ids Nothing Nothing False False False
-          (Just (SceneUpdate
-            (UpdateScene nId eName x y)))))) -> do
-              scenes <- getScenes
-              
-              traverse_ (\id -> do
-                case M.lookup id scenes of
-                  Just s -> do
-                    let newId = fromMaybe id nId
-                    let newName = fromMaybe (name $ entityInfo s) eName
-                    let newX = fromMaybe (fst $ dimensions s) x
-                    let newY = fromMaybe (snd $ dimensions s) y
-                    let newInfo = (entityInfo s) { name = newName }
-                    let newScene = Scene {
-                      entityInfo = newInfo,
-                      dimensions = (newX, newY)
-                    } 
-
-                    saveEntity newId newScene
-
-                    when (id /= newId) $ deleteEntity id
-                  Nothing -> throwBaseError 
-                    $ OtherError 
-                    $ "There is no Scene with ID " <> "'" <> id <> "'"
-                ) ids
     RootOptions _ _ _  _(Just (RollCommand (RollOptions (Just expression) Nothing Nothing Nothing Nothing False False))) -> do
       diceRollResult expression
 

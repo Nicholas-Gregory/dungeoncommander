@@ -51,7 +51,8 @@ module DC.Actions (
   setOutputEntities,
   addEntityToOutputEntities,
   setEntities,
-  deleteEntity
+  deleteEntity,
+  getEntitiesByIds
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -65,7 +66,6 @@ import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin)
 import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError, err, AppM)
 import System.Environment (getArgs)
 import DC.Parse (Parser(runParser))
-import Control.Applicative (Alternative(empty))
 import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
@@ -73,8 +73,6 @@ import qualified Data.ByteString.Char8 as C
 import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap, writeJsonValue, ToJson (toJson))
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
-import qualified Data.Map as M
-import Data.IntMap (delete)
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -737,3 +735,11 @@ deleteEntity id = err "deleteEntity" [("entity_id", show id)] $ do
   entities <- getEntities
   
   setEntities $ M.delete id entities
+
+getEntitiesByIds :: [String] -> AppM Env (M.Map String Entity)
+getEntitiesByIds ids = err "getEntitiesByIds" [("entity_ids", show ids)] $ do
+  entities <- getEntities
+
+  return $ case ids of
+    [] -> entities
+    ids' -> M.filterWithKey (\k _ -> k `elem` ids') entities
