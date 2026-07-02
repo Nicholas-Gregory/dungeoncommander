@@ -30,8 +30,35 @@ import DC.Opts
 import Data.Foldable (traverse_)
 import Data.Either (rights)
 import DC.Json
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Function ((&))
+import Control.Applicative
+
+processSceneCommand :: M.Map String Entity -> SceneAction -> AppM Env ()
+processSceneCommand _ (SceneCreate (CreateScene id sName x y)) = do
+    let info = EntityInfo { name = sName, children = EntityChildren [] }
+    let entity = Scene { entityInfo = info, dimensions = (x, y) }
+
+    saveEntity id entity
+    addEntityToOutputEntities id entity
+processSceneCommand scenes (SceneUpdate (UpdateScene nId sName x y)) = do
+  traverse_ (\(id, s) -> do
+    let newId = fromMaybe id nId
+    let newName = fromMaybe (name $ entityInfo s) sName
+    let newX = fromMaybe (fst $ dimensions s) x
+    let newY = fromMaybe (snd $ dimensions s) y
+    let newInfo = (entityInfo s) { name = newName }
+    let newScene = Scene {
+      entityInfo = newInfo,
+      dimensions = (newX, newY)
+    } 
+
+    saveEntity newId newScene
+    addEntityToOutputEntities newId newScene
+
+    when (id /= newId) $ do 
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ M.toList scenes
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -44,54 +71,92 @@ runApp opts sock = do
   case opts of
     RootOptions _ verbosity _ _
       (Just (SceneCommand 
-        (SceneOptions ids filterX filterY command))) -> do
-          entities <- getEntitiesByIds ids
-          let filteredScenes = entities
-                & M.filter (\case
-                      Scene {} -> True
-                      _ -> False)
-                & M.filter (\s -> maybe True (\fx -> fx == fst (dimensions s)) filterX)
-                & M.filter (\s -> maybe True (\fy -> fy == snd (dimensions s)) filterY)
+        (SceneOptions ids filterX filterY command))) -> if not $ null ids || isJust (filterX <|> filterY)
+          then do
+            -- CLI entity selection, filtering by command options
+            entities <- getEntitiesByIds ids
+            let filteredScenes = entities
+                  & M.filter (\case
+                        Scene {} -> True
+                        _ -> False)
+                  & M.filter (\s -> maybe True (\fx -> fx == fst (dimensions s)) filterX)
+                  & M.filter (\s -> maybe True (\fy -> fy == snd (dimensions s)) filterY)
 
-          setOutputEntities filteredScenes
+            setOutputEntities filteredScenes
+            case command of
+              Just c -> processSceneCommand filteredScenes c
+              Nothing -> traverse_ (printScene verbosity) $ M.keys filteredScenes
+          else do
+            isTerm <- asks isTerm
+      
+            if not isTerm
+              then do
+                -- Pipe input, entities coming from stdin
+                scenes <- getScenes
 
-          case command of
-            Nothing -> traverse_ (printScene verbosity) $ M.keys filteredScenes
-            Just (SceneCreate
-              (CreateScene id sName x y)) -> do
-                let info = EntityInfo { name = sName, children = EntityChildren [] }
-                let entity = Scene { entityInfo = info, dimensions = (x, y) }
+                setOutputEntities entities
+                case command of
+                  Just c -> processSceneCommand scenes c
+                  Nothing -> traverse_ (printScene verbosity) $ M.keys scenes
+              else do
+                -- No CLI options, no pipe input, assuming command applies to all entities or focused entities
+                focus <- getFocusFromDaemon
+                entities <- getEntitiesByIds focus
+                let scenes = M.filter (\case
+                      (Scene {}) -> True
+                      _ -> False) entities
 
-                saveEntity id entity
-                addEntityToOutputEntities id entity
-            Just (SceneUpdate
-              (UpdateScene nId sName x y)) -> 
-                let performUpdate scenes =
-                      traverse_ (\(id, s) -> do
-                      let newId = fromMaybe id nId
-                      let newName = fromMaybe (name $ entityInfo s) sName
-                      let newX = fromMaybe (fst $ dimensions s) x
-                      let newY = fromMaybe (snd $ dimensions s) y
-                      let newInfo = (entityInfo s) { name = newName }
-                      let newScene = Scene {
-                        entityInfo = newInfo,
-                        dimensions = (newX, newY)
-                      } 
+                setOutputEntities entities
+                case command of
+                  Just c -> processSceneCommand scenes c
+                  Nothing -> traverse_ (printScene verbosity) $ M.keys scenes
+          -- entities <- getEntitiesByIds ids
+          -- let filteredScenes = entities
+          --       & M.filter (\case
+          --             Scene {} -> True
+          --             _ -> False)
+          --       & M.filter (\s -> maybe True (\fx -> fx == fst (dimensions s)) filterX)
+          --       & M.filter (\s -> maybe True (\fy -> fy == snd (dimensions s)) filterY)
 
-                      saveEntity newId newScene
-                      addEntityToOutputEntities newId newScene
+          -- setOutputEntities filteredScenes
 
-                      when (id /= newId) $ do 
-                        deleteEntity id
-                        removeEntityFromOutputEntities id) $ M.toList scenes
-                in case (ids, filterX, filterY, command) of
-                  ([], Nothing, Nothing, Just _) -> do
-                    entities <- getEntities
+          -- case command of
+          --   Nothing -> traverse_ (printScene verbosity) $ M.keys filteredScenes
+          --   Just (SceneCreate
+          --     (CreateScene id sName x y)) -> do
+          --       let info = EntityInfo { name = sName, children = EntityChildren [] }
+          --       let entity = Scene { entityInfo = info, dimensions = (x, y) }
 
-                    if M.size entities /= 1
-                      then throwBaseError $ OtherError "Can't perform action on more than one piped entity"
-                      else performUpdate entities
-                  _ -> performUpdate filteredScenes
+          --       saveEntity id entity
+          --       addEntityToOutputEntities id entity
+          --   Just (SceneUpdate
+          --     (UpdateScene nId sName x y)) -> 
+          --       let performUpdate scenes =
+          --             traverse_ (\(id, s) -> do
+          --             let newId = fromMaybe id nId
+          --             let newName = fromMaybe (name $ entityInfo s) sName
+          --             let newX = fromMaybe (fst $ dimensions s) x
+          --             let newY = fromMaybe (snd $ dimensions s) y
+          --             let newInfo = (entityInfo s) { name = newName }
+          --             let newScene = Scene {
+          --               entityInfo = newInfo,
+          --               dimensions = (newX, newY)
+          --             } 
+
+          --             saveEntity newId newScene
+          --             addEntityToOutputEntities newId newScene
+
+          --             when (id /= newId) $ do 
+          --               deleteEntity id
+          --               removeEntityFromOutputEntities id) $ M.toList scenes
+          --       in case (ids, filterX, filterY, command) of
+          --         ([], Nothing, Nothing, Just _) -> do
+          --           entities <- getEntities
+
+          --           if M.size entities /= 1
+          --             then throwBaseError $ OtherError "Can't perform action on more than one piped entity"
+          --             else performUpdate entities
+          --         _ -> performUpdate filteredScenes
     RootOptions _ verbosity _ _
       (Just (ActorCommand
         (ActorOptions [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
@@ -365,11 +430,9 @@ runApp opts sock = do
       Nothing -> do
         let outEntitiesJson = JsonObject $ M.map toJson (outEntities out)
         let actionsJson = JsonObject $ outActions out
-        let focusJson = JsonArray $ map toJson (outFocus out)
         let outJson = JsonObject $ M.fromList [
               ("entities", outEntitiesJson),
-              ("actions", actionsJson),
-              ("focus", focusJson)
+              ("actions", actionsJson)
               ]
 
         liftIO $ putStrLn $ writeJsonValue outJson
@@ -379,10 +442,11 @@ main = withSocketsDo $ do
   gen <- getStdGen
   opts <- execParser rootInfo
   sock <- socket AF_UNIX Stream defaultProtocol
+  isTerm <- hIsTerminalDevice stdin
   let initState = GameState
         { currentScene = ""
         , entities = M.empty
-        , output = Output { outEntities = M.empty, outActions = M.empty, outFocus = [], outError = Nothing }
+        , output = Output { outEntities = M.empty, outActions = M.empty, outError = Nothing }
         , commits = []
         }
   stateRef <- newIORef initState
@@ -391,6 +455,7 @@ main = withSocketsDo $ do
         , dbPath = "db.json"
         , state = stateRef
         , gen = gen
+        , isTerm = isTerm
         }
   connect sock (SockAddrUnix $ socketPath env)
   result <- runExceptT (runReaderT (runApp opts sock) env)

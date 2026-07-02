@@ -46,7 +46,6 @@ import Data.Char
 data Output = Output
   { outEntities :: M.Map String Entity
   , outActions :: M.Map String JsonValue
-  , outFocus :: [String]
   , outError :: Maybe AppError}
 
 data GameState = GameState 
@@ -61,6 +60,7 @@ data Env = Env
   , dbPath :: FilePath
   , state :: IORef GameState
   , gen :: StdGen
+  , isTerm :: Bool
   }
 
 data DState = DState

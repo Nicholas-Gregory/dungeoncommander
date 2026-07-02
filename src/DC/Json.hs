@@ -120,6 +120,7 @@ jsonKvPair = do
 
 jsonObject :: Parser JsonObjectMap
 jsonObject = do
+  _ <- optional whitespace
   _ <- char '{'
   _ <- optional whitespace
   inner <- many $ jsonKvPair
@@ -128,6 +129,7 @@ jsonObject = do
     <* optional whitespace
   _ <- optional whitespace
   _ <- char '}'
+  _ <- optional whitespace
 
   return $ M.fromList inner
 

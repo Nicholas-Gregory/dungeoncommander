@@ -7,7 +7,8 @@ module DC.DActions (
   writeDb,
   sendDb,
   saveEntities,
-  focusEntities
+  focusEntities,
+  sendFocusedEntities
 ) where
 
 import qualified Data.ByteString.Char8 as C
@@ -19,7 +20,7 @@ import DC.Parse
 import Network.Socket.ByteString (recv, sendAll)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader (asks)
-import DC.Error (throwBaseError, ErrorDetail (ParseError))
+import DC.Error (throwBaseError, ErrorDetail (ParseError, JsonValidationError))
 import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, mapMaybe)
 
@@ -91,5 +92,13 @@ focusEntities fEntities = do
             _ -> Nothing) f
 
       writeDb $ M.insert "focus" (toJson newF) db
-    _ -> undefined
+    _ -> throwBaseError $ JsonValidationError "Daemon could not find focused entities"
 
+sendFocusedEntities :: DaemonM ()
+sendFocusedEntities = do
+  db <- readDb
+  conn <- asks dConn
+
+  case M.lookup "focus" db of
+    Just f -> liftIO $ sendAll conn $ C.pack $ writeJsonValue f
+    _ -> throwBaseError $ JsonValidationError "Daemon could not find focused entities"

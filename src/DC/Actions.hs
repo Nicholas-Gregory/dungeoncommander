@@ -53,7 +53,8 @@ module DC.Actions (
   setEntities,
   deleteEntity,
   getEntitiesByIds,
-  removeEntityFromOutputEntities
+  removeEntityFromOutputEntities,
+  getFocusFromDaemon
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -71,9 +72,10 @@ import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Data.ByteString.Char8 as C
-import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap, writeJsonValue, ToJson (toJson))
+import DC.Json (JsonValue (JsonObject, JsonString, JsonArray), jsonObject, FromJson (fromJson), JsonObjectMap, writeJsonValue, ToJson (toJson), jsonArray)
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
+import qualified Data.ByteString as B
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -259,7 +261,7 @@ getJsonFromDaemon :: Socket -> AppM Env JsonValue
 getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do
   liftIO $ sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
   r <- liftIO $ timeout 3000000 $ recv sock 4096
-
+  
   case r of
     Nothing -> throwBaseError $ SocketError "Socket timed out"
     Just d -> case runParser jsonObject (C.unpack d) of
@@ -268,15 +270,16 @@ getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do
 
 getJsonFromInput :: AppM Env JsonValue
 getJsonFromInput = err "getJsonFromInput" [] $ do
-  input <- liftIO getContents
-
-  case runParser jsonObject input of
+  input <- liftIO B.getContents
+  
+  case runParser jsonObject (C.unpack input) of
     Left e -> throwError e
     Right o -> return $ JsonObject $ fst o
 
 getJson :: Socket -> AppM Env JsonValue
 getJson sock = do
-  isTerm <- liftIO $ hIsTerminalDevice stdin
+  isTerm <- asks isTerm
+
   if isTerm
     then do getJsonFromDaemon sock
     else getJsonFromInput
@@ -753,3 +756,28 @@ getEntitiesByIds ids = err "getEntitiesByIds" [("entity_ids", show ids)] $ do
   return $ case ids of
     [] -> entities
     ids' -> M.filterWithKey (\k _ -> k `elem` ids') entities
+
+getFocusFromDaemon :: AppM Env [String]
+getFocusFromDaemon = err "getFocusFromDaemon" [] $ do
+  conn <- refreshSocketConn
+  liftIO $ sendAll conn $ C.pack "{ \"action\": \"get\", \"payload\": \"focus\" }"
+  r <- liftIO $ timeout 3000000 $ recv conn 4096
+
+  case r of
+    Nothing -> throwBaseError $ SocketError "Socket timed out"
+    Just d -> case runParser jsonArray (C.unpack d) of
+      Left e -> throwError e
+      Right (a, "") -> return $ traverse (\case
+        (JsonString s) -> s
+        _ -> "unknown input from daemon") a
+      Right (_, r) -> throwBaseError $ JsonValidationError $ "Client received unparsed content: " <> r
+-- getJsonFromDaemon :: Socket -> AppM Env JsonValue
+-- getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do
+--   liftIO $ sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
+--   r <- liftIO $ timeout 3000000 $ recv sock 4096
+
+--   case r of
+--     Nothing -> throwBaseError $ SocketError "Socket timed out"
+--     Just d -> case runParser jsonObject (C.unpack d) of
+--       Left e -> throwError e
+--       Right o -> return $ JsonObject $ fst o

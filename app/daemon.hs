@@ -18,13 +18,14 @@ import Data.IORef (newIORef)
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import DC.DActions (receiveClient, readDbFile, sendDb, saveEntities, focusEntities)
+import DC.DActions (receiveClient, readDbFile, sendDb, saveEntities, focusEntities, sendFocusedEntities)
 import Control.Monad.Trans.Maybe (MaybeT(runMaybeT))
 import DC.Error (throwBaseError, ErrorDetail (ParseError, JsonValidationError))
 import Data.Maybe (mapMaybe)
 
 performAction :: String -> JsonValue -> DaemonM ()
 performAction "get" (JsonString "all") = sendDb
+performAction "get" (JsonString "focus") = sendFocusedEntities
 performAction "save" entities = do
   conn <- asks dConn
   saveEntities entities
