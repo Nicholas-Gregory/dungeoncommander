@@ -52,7 +52,8 @@ module DC.Actions (
   addEntityToOutputEntities,
   setEntities,
   deleteEntity,
-  getEntitiesByIds
+  getEntitiesByIds,
+  removeEntityFromOutputEntities
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -722,6 +723,15 @@ addEntityToOutputEntities id entity = err "addEntityToOutputEntities" [("entity"
   let newEntities = M.insert id entity oldEntities
 
   setOutputEntities newEntities
+
+removeEntityFromOutputEntities :: String -> AppM Env ()
+removeEntityFromOutputEntities id = err "removeEntityFromOutputEntities" [("entity_id", show id)] $ do
+  stateRef <- asks state
+  gameState <- liftIO $ readIORef stateRef
+  let oldOutput = output gameState
+  let oldEntities = outEntities oldOutput
+
+  setOutputEntities $ M.delete id oldEntities
 
 setEntities :: M.Map String Entity -> AppM Env ()
 setEntities entities = err "setEntities" [("entities", show entities)] $ do

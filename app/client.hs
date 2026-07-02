@@ -65,21 +65,33 @@ runApp opts sock = do
                 saveEntity id entity
                 addEntityToOutputEntities id entity
             Just (SceneUpdate
-              (UpdateScene nId sName x y)) -> do
-                traverse_ (\(id, s) -> do
-                  let newId = fromMaybe id nId
-                  let newName = fromMaybe (name $ entityInfo s) sName
-                  let newX = fromMaybe (fst $ dimensions s) x
-                  let newY = fromMaybe (snd $ dimensions s) y
-                  let newInfo = (entityInfo s) { name = newName }
-                  let newScene = Scene {
-                    entityInfo = newInfo,
-                    dimensions = (newX, newY)
-                  } 
+              (UpdateScene nId sName x y)) -> 
+                let performUpdate scenes =
+                      traverse_ (\(id, s) -> do
+                      let newId = fromMaybe id nId
+                      let newName = fromMaybe (name $ entityInfo s) sName
+                      let newX = fromMaybe (fst $ dimensions s) x
+                      let newY = fromMaybe (snd $ dimensions s) y
+                      let newInfo = (entityInfo s) { name = newName }
+                      let newScene = Scene {
+                        entityInfo = newInfo,
+                        dimensions = (newX, newY)
+                      } 
 
-                  saveEntity newId newScene
+                      saveEntity newId newScene
+                      addEntityToOutputEntities newId newScene
 
-                  when (id /= newId) $ deleteEntity id) $ M.toList filteredScenes
+                      when (id /= newId) $ do 
+                        deleteEntity id
+                        removeEntityFromOutputEntities id) $ M.toList scenes
+                in case (ids, filterX, filterY, command) of
+                  ([], Nothing, Nothing, Just _) -> do
+                    entities <- getEntities
+
+                    if M.size entities /= 1
+                      then throwBaseError $ OtherError "Can't perform action on more than one piped entity"
+                      else performUpdate entities
+                  _ -> performUpdate filteredScenes
     RootOptions _ verbosity _ _
       (Just (ActorCommand
         (ActorOptions [] Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing False False False False False False Nothing))) -> do
@@ -370,7 +382,7 @@ main = withSocketsDo $ do
   let initState = GameState
         { currentScene = ""
         , entities = M.empty
-        , output = Output M.empty M.empty [] Nothing
+        , output = Output { outEntities = M.empty, outActions = M.empty, outFocus = [], outError = Nothing }
         , commits = []
         }
   stateRef <- newIORef initState
