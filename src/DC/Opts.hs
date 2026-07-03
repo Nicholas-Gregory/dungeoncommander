@@ -37,6 +37,7 @@ module DC.Opts (
  MoneyAction(..),
  CreateMoney(..),
  UpdateScene(..),
+ EntityAction(..)
 ) where
 
 import Options.Applicative
@@ -65,9 +66,23 @@ data Command
   | WisCommand AbilityCheck
   deriving (Show, Eq)
 
+data EntityAction
+  = SceneA SceneAction
+  | ActorA ActorAction
+  | ObjectA ObjectAction
+  | TrapA TrapAction
+  | ItemA ItemAction
+  | ArmorA ArmorAction
+  | WeaponA WeaponAction
+  | ContainerA ContainerAction
+  | MountA MountAction
+  | SpellA SpellAction
+  | MoneyA MoneyAction
+  deriving (Show, Eq)
+
 data SceneAction
   = SceneCreate CreateScene
-  | SceneDelete DeleteScene
+  | SceneDelete
   | SceneUpdate UpdateScene
   | SceneAddActor AddActorScene
   | SceneAddObject AddObjectScene
@@ -235,7 +250,7 @@ data SceneOptions = SceneOptions
   { sceneIds :: [String]
   , sceneFilterX :: Maybe Int
   , sceneFilterY :: Maybe Int
-  , sceneCommand :: Maybe SceneAction
+  , entityCommand :: Maybe EntityAction
   } deriving (Show, Eq)
 
 sceneAction :: Parser SceneOptions
@@ -257,7 +272,7 @@ sceneAction = SceneOptions
       (progDesc "Directly update values for a particular Scene"))
     <> command "create" (info (helper <*> createScene)
       (progDesc "Create an entirely new Scene"))
-    <> command "delete" (info (helper <*> deleteScene)
+    <> command "delete" (info (helper <*> pure (SceneA SceneDelete))
       (progDesc "Delete a Scene entirely"))
     <> command "add-actor" (info (helper <*> addActorScene)
       (progDesc "Add an Actor to a Scene"))
@@ -272,8 +287,8 @@ data RemoveActorScene = RemoveActorScene
   , removeActorActorId :: Maybe String
   } deriving (Show, Eq)
 
-removeActorScene :: Parser SceneAction
-removeActorScene = SceneRemoveActor <$> (RemoveActorScene
+removeActorScene :: Parser EntityAction
+removeActorScene = SceneA . SceneRemoveActor <$> (RemoveActorScene
   <$> optional (strOption
     ( long "scene-id"
     <> metavar "SCENE-ID"
@@ -288,8 +303,8 @@ data AddObjectScene = AddObjectScene
   , addObjectObjectId :: Maybe String
   } deriving (Show, Eq)
 
-addObjectScene :: Parser SceneAction
-addObjectScene = SceneAddObject <$> (AddObjectScene
+addObjectScene :: Parser EntityAction
+addObjectScene = SceneA . SceneAddObject <$> (AddObjectScene
   <$> optional (strOption
     ( long "scene-id"
     <> metavar "SCENE-ID"
@@ -304,8 +319,8 @@ data AddActorScene = AddActorScene
   , addActorActorId :: Maybe String
   } deriving (Show, Eq)
 
-addActorScene :: Parser SceneAction
-addActorScene = SceneAddActor <$> (AddActorScene
+addActorScene :: Parser EntityAction
+addActorScene = SceneA . SceneAddActor <$> (AddActorScene
   <$> optional (strOption
     ( long "scene-id"
     <> metavar "SCENE-ID"
@@ -315,16 +330,6 @@ addActorScene = SceneAddActor <$> (AddActorScene
     <> metavar "ACTOR-ID"
     <> help "The ID of the Actor to add to the Scene")))
 
-data DeleteScene = DeleteScene
-  { deleteSceneId :: Maybe String } deriving (Show, Eq)
-
-deleteScene :: Parser SceneAction
-deleteScene = SceneDelete <$> (DeleteScene
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "The ID of the Scene to delete")))
-
 data CreateScene = CreateScene
   { createSceneId :: String
   , createSceneName :: String
@@ -332,8 +337,8 @@ data CreateScene = CreateScene
   , createSceneY :: Int
   } deriving (Show, Eq)
 
-createScene :: Parser SceneAction
-createScene = SceneCreate <$> (CreateScene
+createScene :: Parser EntityAction
+createScene = SceneA . SceneCreate <$> (CreateScene
   <$> strOption
     ( long "id"
     <> metavar "ID"
@@ -359,8 +364,8 @@ data UpdateScene = UpdateScene
   , updateSceneY :: Maybe Int
   } deriving (Show, Eq)
 
-updateScene :: Parser SceneAction
-updateScene = SceneUpdate <$> (UpdateScene
+updateScene :: Parser EntityAction
+updateScene = SceneA . SceneUpdate <$> (UpdateScene
   <$> optional (strOption
     ( long "new-id"
     <> long "nid"

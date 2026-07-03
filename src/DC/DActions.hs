@@ -23,6 +23,7 @@ import Control.Monad.Reader (asks)
 import DC.Error (throwBaseError, ErrorDetail (ParseError, JsonValidationError))
 import System.Directory (doesFileExist)
 import Data.Maybe (catMaybes, mapMaybe)
+import Debug.Trace (trace)
 
 initialJson :: M.Map String JsonValue
 initialJson = M.fromList 

@@ -76,6 +76,7 @@ import DC.Json (JsonValue (JsonObject, JsonString, JsonArray), jsonObject, FromJ
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
 import qualified Data.ByteString as B
+import Debug.Trace (trace)
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
