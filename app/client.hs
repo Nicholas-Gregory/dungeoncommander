@@ -23,7 +23,7 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types 
-import DC.Error (AppM, AppError (AppError), throwBaseError, ErrorDetail (OtherError))
+import DC.Error (AppM, AppError (AppError), throwBaseError, ErrorDetail (OtherError, ParseError))
 import Options.Applicative ( execParser )
 import DC.Opts
 import Data.Foldable (traverse_)
@@ -36,6 +36,7 @@ import qualified Data.Aeson.Key as K
 import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString as BS
+import qualified Data.Text as T
 
 processCommand :: KM.KeyMap Entity -> EntityAction -> AppM Env ()
 processCommand _ (SceneA (SceneCreate (CreateScene id sName x y))) = do
@@ -64,6 +65,35 @@ processCommand scenes (SceneA (SceneUpdate (UpdateScene nId sName x y))) = do
       deleteEntity id
       removeEntityFromOutputEntities id) $ KM.toList scenes
 processCommand scenes (SceneA SceneDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList scenes
+processCommand scenes (SceneA (SceneAddActor (AddActorScene ids))) = do
+  traverse_ (\(k, _) -> traverse_ (addChild ActorLocation k) ids) $ M.toList $ KM.toMapText scenes
+  traverse_ (\(k, v) -> addEntityToOutputEntities (T.unpack k) v)$ M.toList $ KM.toMapText scenes
+processCommand _ (ActorA (ActorCreate (CreateActor id name x y cHp mHp cha int con str dex wis hd ac l sp wp))) = do
+  let info = EntityInfo { name = name, children = EntityChildren [] }
+  case (sequenceA sp, sequenceA wp) of
+    (Right sp', Right wp') -> do
+      let entity = Actor
+            { entityInfo = info
+            , position = (x, y)
+            , currentHp = cHp
+            , maxHp = mHp
+            , cha = cha
+            , int = int
+            , con = con
+            , str = str
+            , dex = dex
+            , wis = wis
+            , hitDice = hd
+            , ac = ac
+            , level = l
+            , saveProficiencies = SaveProficiencies sp'
+            , weaponProficiencies = WeaponProficiencies wp'}
+
+      saveEntity id entity
+      addEntityToOutputEntities id entity
+    (Left _, Right _) -> throwBaseError $ ParseError "Unknown save proficiency"
+    (Right _, Left _) -> throwBaseError $ ParseError "Unkown weapon proficiency"
+    (Left _, Left _) -> throwBaseError $ ParseError "Unkown save proficiency, unknown weapon proficiency"
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -79,16 +109,36 @@ runApp opts sock = do
                 (SceneCommand {}) -> KM.filter (\case
                   Scene {} -> True
                   _ -> False) e
+                (ActorCommand {}) -> KM.filter (\case
+                  Actor {} -> True
+                  _ -> False) e
               opt = case rootCommand of
                 (SceneCommand opt) -> opt
+                (ActorCommand opt) -> opt
               filteringCondition = case opt of
-                (SceneOptions ids filterX filterY _) -> not $ null ids || isJust (filterX <|> filterY)
+                (SceneOptions ids filterX filterY _) -> not (null ids) || isJust (filterX <|> filterY)
+                (ActorOptions ids filterX filterY filterCHp filterMHp filterCha filterInt filterCon filterStr filterDex filterWis filterHd filterAc filterLevel _) -> not (null ids) || isJust (filterX <|> filterY <|> filterCHp)
               ids = case opt of
                 (SceneOptions ids _ _ _) -> ids
+                (ActorOptions { actorIds = ids }) -> ids
               filters = case opt of
                 (SceneOptions _ filterX filterY _) ->
                   [ \s -> maybe True (\fx -> fx == fst (dimensions s)) filterX
                   , \s -> maybe True (\fy -> fy == snd (dimensions s)) filterY]
+                (ActorOptions _ filterX filterY filterCHp filterMHp filterCha filterInt filterCon filterStr filterDex filterWis filterHd filterAc filterLevel _) ->
+                  [ \a -> maybe True (\fx -> fx == fst (position a)) filterX
+                  , \a -> maybe True (\fy -> fy == snd (position a)) filterY
+                  , \a -> maybe True (\fMhp -> fMhp == maxHp a) filterMHp
+                  , \a -> maybe True (\fChp -> fChp == currentHp a) filterCHp
+                  , \a -> maybe True (\fCha -> fCha == cha a) filterCha
+                  , \a -> maybe True (\fInt -> fInt == int a) filterInt
+                  , \a -> maybe True (\fCon -> fCon == con a) filterCon
+                  , \a -> maybe True (\fStr -> fStr == str a) filterStr
+                  , \a -> maybe True (\fDex -> fDex == dex a) filterDex
+                  , \a -> maybe True (\fWis -> fWis == wis a) filterWis
+                  , \a -> maybe True (\fHd -> fHd == hitDice a) filterHd
+                  , \a -> maybe True (\fAc -> fAc == ac a) filterAc
+                  , \a -> maybe True (\fL -> fL == level a) filterLevel]
           in if filteringCondition
             then do
               -- CLI entity selection, filtering by command options
@@ -116,7 +166,6 @@ runApp opts sock = do
                 else do
                   -- No CLI options, no pipe input, assuming command applies to all entities or focused entities
                   focus <- getFocusFromDaemon
-                  -- liftIO $ hPrint stderr focus
                   entities <- if null focus
                     then getEntities
                     else getEntitiesByIds focus

@@ -131,7 +131,8 @@ executable dc
         mtl,
         transformers,
         optparse-applicative,
-        aeson
+        aeson,
+        text
     default-language: Haskell2010
 
 test-suite dungeoncommander-test

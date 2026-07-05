@@ -774,7 +774,7 @@ getFocusFromDaemon = err "getFocusFromDaemon" [] $ do
   conn <- refreshSocketConn
   liftIO $ sendAll conn $ C.pack "{ \"action\": \"get\", \"payload\": \"focus\" }"
   r <- liftIO $ timeout 3000000 $ recv conn 4096
-  -- liftIO $ hPrint stderr r
+  
   case r of
     Nothing -> throwBaseError $ SocketError "Socket timed out"
     Just d -> case JSON.eitherDecode $ BS.fromStrict d :: Either String JSON.Value of

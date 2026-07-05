@@ -5,8 +5,6 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- SceneOptions(..),
- ActorOptions(..),
  ObjectOptions(..),
  TrapOptions(..),
  ItemOptions(..),
@@ -37,7 +35,9 @@ module DC.Opts (
  MoneyAction(..),
  CreateMoney(..),
  UpdateScene(..),
- EntityAction(..)
+ EntityAction(..),
+ AddActorScene(..),
+ EntityOption(..)
 ) where
 
 import Options.Applicative
@@ -48,8 +48,8 @@ import qualified DC.Parse as P
 
 data Command
   = RollCommand RollOptions
-  | SceneCommand SceneOptions
-  | ActorCommand ActorOptions
+  | SceneCommand EntityOption
+  | ActorCommand EntityOption
   | ObjectCommand ObjectOptions
   | TrapCommand TrapOptions
   | ItemCommand ItemOptions
@@ -65,6 +65,41 @@ data Command
   | StrCommand AbilityCheck
   | DexCommand AbilityCheck
   | WisCommand AbilityCheck
+  deriving (Show, Eq)
+
+data EntityOption
+  = SceneOptions
+    { sceneIds :: [String]
+    , sceneFilterX :: Maybe Int
+    , sceneFilterY :: Maybe Int
+    , entityCommand :: Maybe EntityAction
+    }
+  | ActorOptions
+    { actorIds :: [String]
+    , actorFilterX :: Maybe Int
+    , actorFilterY :: Maybe Int
+    , actorFilterCurrentHp :: Maybe Int
+    , actorFilterMaxHp :: Maybe Int
+    , actorFilterCha :: Maybe Int
+    , actorFilterInt :: Maybe Int
+    , actorFilterCon :: Maybe Int
+    , actorFilterStr :: Maybe Int
+    , actorFilterDex :: Maybe Int
+    , actorFilterWis :: Maybe Int
+    , actorFilterHitDice :: Maybe String
+    , actorFilterAc :: Maybe Int
+    , actorFilterLevel :: Maybe Int
+    , entityCommand :: Maybe EntityAction
+    }
+  | ObjectOpt ObjectOptions
+  | TrapOpt TrapOptions
+  | ItemOpt ItemOptions
+  | ArmorOpt ArmorOptions
+  | WeaponOpt WeaponOptions
+  | ContainerOpt ContainerOptions
+  | MountOpt MountOptions
+  | SpellOpt SpellOptions
+  | MoneyOpt MoneyOptions
   deriving (Show, Eq)
 
 data EntityAction
@@ -89,18 +124,12 @@ data SceneAction
   | SceneAddObject AddObjectScene
   | SceneRemoveActor RemoveActorScene
   | SceneRemoveObject
-  | SceneAddTo
-  | SceneRemoveFrom
   deriving (Show, Eq)
 
 data ActorAction
   = ActorCreate CreateActor
   | ActorDelete
   | ActorUpdate UpdateActor
-  | ActorAdd
-  | ActorRemove
-  | ActorAddTo
-  | ActorRemoveFrom
   deriving (Show, Eq)
 
 rootInfo :: ParserInfo RootOptions
@@ -247,14 +276,7 @@ abilityCheck = AbilityCheck
     <> short 's'
     <> help "Include this switch if the check is a saving throw")
 
-data SceneOptions = SceneOptions
-  { sceneIds :: [String]
-  , sceneFilterX :: Maybe Int
-  , sceneFilterY :: Maybe Int
-  , entityCommand :: Maybe EntityAction
-  } deriving (Show, Eq)
-
-sceneAction :: Parser SceneOptions
+sceneAction :: Parser EntityOption
 sceneAction = SceneOptions
   <$> many (strOption
     (long "id"
@@ -316,18 +338,14 @@ addObjectScene = SceneA . SceneAddObject <$> (AddObjectScene
     <> help "The ID of the Object to add to the Scene")))
 
 data AddActorScene = AddActorScene
-  { addActorSceneId :: Maybe String 
-  , addActorActorId :: Maybe String
+  { addActorActorIds :: [String]
   } deriving (Show, Eq)
 
 addActorScene :: Parser EntityAction
 addActorScene = SceneA . SceneAddActor <$> (AddActorScene
-  <$> optional (strOption
-    ( long "scene-id"
-    <> metavar "SCENE-ID"
-    <> help "The ID of the Scene to add an Actor to"))
-  <*> optional (strOption
+  <$> many (strOption
     ( long "actor-id"
+    <> long "aid"
     <> metavar "ACTOR-ID"
     <> help "The ID of the Actor to add to the Scene")))
 
@@ -386,31 +404,7 @@ updateScene = SceneA . SceneUpdate <$> (UpdateScene
     <> metavar "INTEGER"
     <> help "The new Y dimension of the Scene")))
 
-data ActorOptions = ActorOptions
-  { actorIds :: [String]
-  , actorFilterX :: Maybe Int
-  , actorFilterY :: Maybe Int
-  , actorFilterCurrentHp :: Maybe Int
-  , actorFilterMaxHp :: Maybe Int
-  , actorFilterCha :: Maybe Int
-  , actorFilterInt :: Maybe Int
-  , actorFilterCon :: Maybe Int
-  , actorFilterStr :: Maybe Int
-  , actorFilterDex :: Maybe Int
-  , actorFilterWis :: Maybe Int
-  , actorFilterHitDice :: Maybe String
-  , actorFilterAc :: Maybe Int
-  , actorFilterLevel :: Maybe Int
-  , actorCarriedItems :: Bool
-  , actorHeldItem :: Bool
-  , actorKnownSpells :: Bool
-  , actorPreparedSpells :: Bool
-  , actorDonnedArmor :: Bool
-  , actorWieldedWeapon :: Bool
-  , actorCommand :: Maybe ActorAction
-  } deriving (Show, Eq)
-
-actorAction :: Parser ActorOptions
+actorAction :: Parser EntityOption
 actorAction = ActorOptions
   <$> many (strOption
     (long "id"
@@ -468,24 +462,6 @@ actorAction = ActorOptions
     (long "filter-level"
     <> metavar "INTEGER"
     <> help "Filter Actors by their Character Level"))
-  <*> switch
-    (long "carried-items"
-    <> help "Use the Actor's carried items in the action")
-  <*> switch
-    (long "held-items"
-    <> help "Use the Actor's held items in the action")
-  <*> switch
-    (long "known-spells"
-    <> help "Use the Actor's known spells in the action")
-  <*> switch
-    (long "prepared-spells"
-    <> help "Use the Actor's prepared spells in the action")
-  <*> switch
-    (long "donned-armor"
-    <> help "Use the Actor's donned armor in the action")
-  <*> switch
-    (long "wielded-weapons"
-    <> help "Use the Actor's wielded weapon(s) in the action")
   <*> optional (hsubparser
     (command "update" (info (helper <*> updateActor)
       (progDesc "Directly update values for a particular Actor"))
@@ -563,8 +539,8 @@ convertWeaponProficiency "longbow" = Right $ Specific $ MartialRanged Longbow
 convertWeaponProficiency "net" = Right $ Specific $ MartialRanged Net
 convertWeaponProficiency _ = Left $ newBaseError $ ParseError "Expected D&D 5e weapon proficiency"
 
-createActor :: Parser ActorAction
-createActor = ActorCreate <$> (CreateActor
+createActor :: Parser EntityAction
+createActor = ActorA . ActorCreate <$> (CreateActor
   <$> strOption
     (long "id"
     <> metavar "ACTOR-ID"
@@ -660,8 +636,8 @@ data UpdateActor = UpdateActor
   , updateActorWeaponProficiencies :: [Either AppError WeaponProficiency]
   } deriving (Show, Eq)
 
-updateActor :: Parser ActorAction
-updateActor = ActorUpdate <$> (UpdateActor
+updateActor :: Parser EntityAction
+updateActor = ActorA . ActorUpdate <$> (UpdateActor
   <$> strOption
     (long "id"
     <> metavar "ACTOR-ID"
