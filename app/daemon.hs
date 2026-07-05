@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
@@ -9,7 +10,6 @@ import qualified Data.ByteString.Char8 as C
 import System.IO (readFile, withFile, IOMode (ReadWriteMode), hGetContents, hPutStrLn, stderr)
 import Control.Concurrent (forkFinally)
 import qualified Data.Map as M
-import DC.Json (JsonValue (JsonString, JsonObject, JsonArray), JsonObjectMap, jsonObject, getField, writeJsonValue, ToJson (toJson))
 import DC.Parse (Parser(runParser))
 import System.Directory (doesFileExist)
 import Control.Applicative (Alternative(empty))
@@ -22,21 +22,25 @@ import DC.DActions (receiveClient, readDbFile, sendDb, saveEntities, focusEntiti
 import Control.Monad.Trans.Maybe (MaybeT(runMaybeT))
 import DC.Error (throwBaseError, ErrorDetail (ParseError, JsonValidationError))
 import Data.Maybe (mapMaybe)
+import qualified Data.Aeson as JSON
+import qualified Data.Text as T
+import qualified Data.Vector as V
+import qualified Data.Aeson.KeyMap as KM
 
-performAction :: String -> JsonValue -> DaemonM ()
-performAction "get" (JsonString "all") = sendDb
-performAction "get" (JsonString "focus") = sendFocusedEntities
+performAction :: String -> JSON.Value -> DaemonM ()
+performAction "get" "all" = sendDb
+performAction "get" "focus" = sendFocusedEntities
 performAction "save" entities = do
   conn <- asks dConn
   saveEntities entities
 
   liftIO $ sendAll conn $ C.pack "SUCCESS"
-performAction "focus" (JsonArray entityIds) = case traverse (\case
-  JsonString s -> Just s
+performAction "focus" (JSON.Array entityIds) = case traverse (\case
+  JSON.String s -> Just s
   _ -> Nothing) entityIds of
     Just a -> do
       conn <- asks dConn
-      focusEntities a
+      focusEntities $ map T.unpack $ V.toList a
 
       liftIO $ sendAll conn $ C.pack "SUCCESS"
     Nothing -> throwBaseError $ JsonValidationError "Daemon received something other than list of strings for focus command"
@@ -46,8 +50,8 @@ handleClient :: DaemonM ()
 handleClient = do
   cJson <- receiveClient
 
-  case (M.lookup "action" cJson, M.lookup "payload" cJson) of
-    (Just (JsonString action), Just payload) -> performAction action payload
+  case (KM.lookup "action" cJson, KM.lookup "payload" cJson) of
+    (Just (JSON.String action), Just payload) -> performAction (T.unpack action) payload
     _ -> throwBaseError $ ParseError "Daemon received request from client without 'action' and/or 'payload' fields"
 
 main :: IO ()

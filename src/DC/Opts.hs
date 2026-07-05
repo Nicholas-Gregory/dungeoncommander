@@ -42,8 +42,9 @@ module DC.Opts (
 
 import Options.Applicative
 import DC.Types
-import DC.Error (AppError(AppError))
-import DC.Json
+import DC.Error (AppError(AppError), throwBaseError, ErrorDetail (ParseError), newBaseError)
+import qualified Data.Aeson as JSON
+import qualified DC.Parse as P
 
 data Command
   = RollCommand RollOptions
@@ -511,6 +512,57 @@ data CreateActor = CreateActor
   , createActorWeaponProficiencies :: [Either AppError WeaponProficiency]
   } deriving (Show, Eq)
 
+convertSaveProficiency :: String -> Either AppError Ability
+convertSaveProficiency "cha" = Right Charisma
+convertSaveProficiency "int" = Right Intelligence
+convertSaveProficiency "wis" = Right Wisdom
+convertSaveProficiency "dex" = Right Dexterity
+convertSaveProficiency "con" = Right Constitution
+convertSaveProficiency "str" = Right Strength
+convertSaveProficiency _ = Left $ newBaseError $ ParseError "Expected three-letter Ability code"
+
+convertWeaponProficiency :: String -> Either AppError WeaponProficiency
+convertWeaponProficiency "simple" = Right Simple
+convertWeaponProficiency "martial" = Right Martial
+convertWeaponProficiency "club" = Right $ Specific $ SimpleMelee Club
+convertWeaponProficiency "dagger" = Right $ Specific $ SimpleMelee Dagger
+convertWeaponProficiency "greatclub" = Right $ Specific $ SimpleMelee Greatclub
+convertWeaponProficiency "handaxe" = Right $ Specific $ SimpleMelee Handaxe
+convertWeaponProficiency "javelin" = Right $ Specific $ SimpleMelee Javelin
+convertWeaponProficiency "light hammer" = Right $ Specific $ SimpleMelee LightHammer
+convertWeaponProficiency "mace" = Right $ Specific $ SimpleMelee Mace
+convertWeaponProficiency "quarterstaff" = Right $ Specific $ SimpleMelee Quarterstaff
+convertWeaponProficiency "sickle" = Right $ Specific $ SimpleMelee Sickle
+convertWeaponProficiency "spear" = Right $ Specific $ SimpleMelee Spear
+convertWeaponProficiency "crossbow, light" = Right $ Specific $ SimpleRanged LightCrossbow
+convertWeaponProficiency "dart" = Right $ Specific $ SimpleRanged Dart
+convertWeaponProficiency "shortbow" = Right $ Specific $ SimpleRanged Shortbow
+convertWeaponProficiency "sling" = Right $ Specific $ SimpleRanged Sling
+convertWeaponProficiency "battleaxe" = Right $ Specific $ MartialMelee Battleaxe
+convertWeaponProficiency "flail" = Right $ Specific $ MartialMelee Flail
+convertWeaponProficiency "glaive" = Right $ Specific $ MartialMelee Glaive
+convertWeaponProficiency "greataxe" = Right $ Specific $ MartialMelee Greataxe
+convertWeaponProficiency "greatsword" = Right $ Specific $ MartialMelee Greatsword
+convertWeaponProficiency "halberd" = Right $ Specific $ MartialMelee Halberd
+convertWeaponProficiency "lance" = Right $ Specific $ MartialMelee Lance
+convertWeaponProficiency "longsword" = Right $ Specific $ MartialMelee Longsword
+convertWeaponProficiency "maul" = Right $ Specific $ MartialMelee Maul
+convertWeaponProficiency "morningstar" = Right $ Specific $ MartialMelee Morningstar
+convertWeaponProficiency "pike" = Right $ Specific $ MartialMelee Pike
+convertWeaponProficiency "rapier" = Right $ Specific $ MartialMelee Rapier
+convertWeaponProficiency "scimitar" = Right $ Specific $ MartialMelee Scimitar
+convertWeaponProficiency "shortsword" = Right $ Specific $ MartialMelee Shortsword
+convertWeaponProficiency "trident" = Right $ Specific $ MartialMelee Trident
+convertWeaponProficiency "war pick" = Right $ Specific $ MartialMelee WarPick
+convertWeaponProficiency "warhammer" = Right $ Specific $ MartialMelee Warhammer
+convertWeaponProficiency "whip" = Right $ Specific $ MartialMelee Whip
+convertWeaponProficiency "blowgun" = Right $ Specific $ MartialRanged Blowgun
+convertWeaponProficiency "crossbow, hand" = Right $ Specific $ MartialRanged HandCrossbow
+convertWeaponProficiency "crossbow, heavy" = Right $ Specific $ MartialRanged HeavyCrossbow
+convertWeaponProficiency "longbow" = Right $ Specific $ MartialRanged Longbow
+convertWeaponProficiency "net" = Right $ Specific $ MartialRanged Net
+convertWeaponProficiency _ = Left $ newBaseError $ ParseError "Expected D&D 5e weapon proficiency"
+
 createActor :: Parser ActorAction
 createActor = ActorCreate <$> (CreateActor
   <$> strOption
@@ -577,16 +629,16 @@ createActor = ActorCreate <$> (CreateActor
     <> short 'l'
     <> metavar "INTEGER"
     <> help "The character level of the new Actor")
-  <*> many ((\s -> fromValue (JsonString s) :: Either AppError Ability) <$> strOption
+  <*> many (convertSaveProficiency <$> strOption
     (long "save-proficiency"
     <> long "sp"
     <> metavar "ABILITY"
     <> help "Three-letter ability score identifier (cha, int, wis, dex, str, con). Can be used multiple times"))
-  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProficiency) <$> strOption
+  <*> many (convertWeaponProficiency <$> strOption
     (long "weapon-proficiency"
     <> long "wp"
     <> metavar "WEAPON-PROFICIENCY"
-    <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match in quotes, lowercase.")))
+    <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match, lowercase.")))
 
 data UpdateActor = UpdateActor
   { updateActorId :: String
@@ -672,12 +724,12 @@ updateActor = ActorUpdate <$> (UpdateActor
     <> short 'l'
     <> metavar "INTEGER"
     <> help "The new Level of the Actor"))
-    <*> many ((\s -> fromValue (JsonString s) :: Either AppError Ability) <$> strOption
+    <*> many (convertSaveProficiency <$> strOption
     (long "save-proficiency"
     <> long "sp"
     <> metavar "ABILITY"
     <> help "Three-letter ability score identifier (cha, int, wis, dex, str, con). Can be used multiple times"))
-  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProficiency) <$> strOption
+  <*> many (convertWeaponProficiency <$> strOption
     (long "weapon-proficiency"
     <> long "wp"
     <> metavar "WEAPON-PROFICIENCY"
@@ -1056,6 +1108,50 @@ data CreateWeapon = CreateWeapon
   , createWeaponWeapon :: Either AppError Weapon
   } deriving (Show, Eq)
 
+convertDamageType :: String -> Either AppError DamageType
+convertDamageType "acid" = Right Acid
+convertDamageType "bludgeoning" = Right Bludgeoning
+convertDamageType "cold" = Right Cold
+convertDamageType "fire" = Right Fire
+convertDamageType "force" = Right Force
+convertDamageType "lightning" = Right Lightning
+convertDamageType "necrotic" = Right Necrotic
+convertDamageType "piercing" = Right Piercing
+convertDamageType "poison" = Right Poison
+convertDamageType "psychic" = Right Psychic
+convertDamageType "radiant" = Right Radiant
+convertDamageType "slashing" = Right Slashing
+convertDamageType "thunder" = Right Thunder
+convertDamageType _ = Left $ newBaseError $ ParseError "Expected a damage type string"
+
+propertyParser :: P.Parser WeaponProperty
+propertyParser = Ammunition <$ P.string "ammunition"
+  <|> (Finesse <$ P.string "finesse")
+  <|> (Heavy <$ P.string "heavy")
+  <|> (Light <$ P.string "light")
+  <|> (Loading <$ P.string "loading")
+  <|> ((\_ _ _ n _ _ l _ _ -> Range (n, l))
+    <$> P.string "range" 
+    <*> P.space 
+    <*> P.char '('
+    <*> P.number
+    <*> P.char ','
+    <*> optional P.space
+    <*> P.number
+    <*> P.char ')'
+    <*> optional P.space)
+  <|> (Reach <$ P.string "reach")
+  <|> (Special <$ P.string "special")
+  <|> (Thrown <$ P.string "thrown")
+  <|> (TwoHanded <$ P.string "two-handed")
+  <|> ((\_ _ _ d _ _ -> Versatile d)
+    <$> P.string "versatile"
+    <*> P.space
+    <*> P.char '('
+    <*> P.number
+    <*> P.char ')'
+    <*> optional P.space)
+
 createWeapon :: Parser WeaponAction
 createWeapon = WeaponCreate <$> (CreateWeapon
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Weapon")
@@ -1063,17 +1159,21 @@ createWeapon = WeaponCreate <$> (CreateWeapon
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
   <*> strOption ( long "damage" <> metavar "DICE" <> help "Damage expression")
-  <*> ((\s -> fromValue (JsonString s) :: Either AppError DamageType) <$> strOption
+  <*> (convertDamageType <$> strOption
     ( long "damage-type"
     <> long "dt"
     <> metavar "DAMAGE-TYPE"
     <> help "A damage type from the D&D 5e basic rules damage type table, all lowercase"))
-  <*> many ((\s -> fromValue (JsonString s) :: Either AppError WeaponProperty) <$> strOption
+  <*> many ((\s -> case P.runParser propertyParser s of
+    Right (r, "") -> Right r
+    _ -> Left $ newBaseError $ ParseError "Expected a weapon property string") <$> strOption
     (long "weapon-property"
     <> long "wp"
     <> metavar "WEAPON-PROPERTY"
     <> help "A weapon property from the D&d 5e weapon property table. Can use multiple of this option"))
-  <*> ((\s -> fromValue (JsonString s) :: Either AppError Weapon) <$> strOption 
+  <*> ((\s -> case convertWeaponProficiency s of
+    Right (Specific w) -> Right w
+    _ -> Left $ newBaseError $ ParseError "Expected weapon string") <$> strOption 
     ( long "weapon" 
     <> short 'w'
     <> metavar "WEAPON" 
