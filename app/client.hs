@@ -94,6 +94,53 @@ processCommand _ (ActorA (ActorCreate (CreateActor id name x y cHp mHp cha int c
     (Left _, Right _) -> throwBaseError $ ParseError "Unknown save proficiency"
     (Right _, Left _) -> throwBaseError $ ParseError "Unkown weapon proficiency"
     (Left _, Left _) -> throwBaseError $ ParseError "Unkown save proficiency, unknown weapon proficiency"
+processCommand actors (ActorA (ActorUpdate (UpdateActor nId nName x y cHp mHp ncha nint ncon nstr ndex nwis hd nac l sp wp))) = do
+  case (sequenceA sp, sequenceA wp) of
+    (Right sp', Right wp') -> do
+      traverse_ (\(k, a) -> do
+        let id = K.toString k
+        let newId = fromMaybe id nId
+        let newName = fromMaybe (name $ entityInfo a) nName
+        let newX = fromMaybe (fst $ position a) x
+        let newY = fromMaybe (snd $ position a) y
+        let newCurrentHp = fromMaybe (currentHp a) cHp
+        let newMaxHp = fromMaybe (maxHp a) mHp
+        let newCha = fromMaybe (cha a) ncha
+        let newInt = fromMaybe (int a) nint
+        let newCon = fromMaybe (con a) ncon
+        let newStr = fromMaybe (str a) nstr
+        let newDex = fromMaybe (dex a) ndex
+        let newWis = fromMaybe (wis a) nwis
+        let newHd = fromMaybe (hitDice a) hd
+        let newAc = fromMaybe (ac a) nac
+        let newLevel = fromMaybe (level a) l
+        let newInfo = (entityInfo a) { name = newName }
+        let newActor = Actor 
+              { entityInfo = newInfo
+              , position = (newX, newY)
+              , currentHp = newCurrentHp
+              , maxHp = newMaxHp
+              , cha = newCha
+              , int = newInt
+              , con = newCon
+              , str = newStr
+              , dex = newDex
+              , wis = newWis
+              , hitDice = newHd
+              , ac = newAc
+              , level = newLevel
+              , weaponProficiencies = WeaponProficiencies wp'
+              , saveProficiencies = SaveProficiencies sp'}
+        
+        saveEntity newId newActor
+        addEntityToOutputEntities newId newActor
+        
+        when (id /= newId) $ do
+          deleteEntity id
+          removeEntityFromOutputEntities id) $ KM.toList actors
+    (Left _, Right _) -> throwBaseError $ ParseError "Unknown save proficiency"
+    (Right _, Left _) -> throwBaseError $ ParseError "Unkown weapon proficiency"
+    (Left _, Left _) -> throwBaseError $ ParseError "Unkown save proficiency, unknown weapon proficiency"
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -157,12 +204,12 @@ runApp opts sock = do
               if not isTerm
                 then do
                   -- Pipe input, entities coming from stdin
-                  scenes <- getScenes
+                  entities <- getEntities
 
                   setOutputEntities entities
                   case entityCommand opt of
-                    Just c -> processCommand scenes c
-                    Nothing -> traverse_ (printScene verbosity . K.toString) $ KM.keys scenes
+                    Just c -> processCommand entities c
+                    Nothing -> traverse_ (printScene verbosity . K.toString) $ KM.keys entities
                 else do
                   -- No CLI options, no pipe input, assuming command applies to all entities or focused entities
                   focus <- getFocusFromDaemon

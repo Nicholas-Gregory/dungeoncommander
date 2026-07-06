@@ -37,7 +37,8 @@ module DC.Opts (
  UpdateScene(..),
  EntityAction(..),
  AddActorScene(..),
- EntityOption(..)
+ EntityOption(..),
+ UpdateActor(..)
 ) where
 
 import Options.Applicative
@@ -617,7 +618,7 @@ createActor = ActorA . ActorCreate <$> (CreateActor
     <> help "Either 'simple', 'martial', or a string consisting of one of the official D&d 5e weapon names from the Basic Rules weapons table. Exact match, lowercase.")))
 
 data UpdateActor = UpdateActor
-  { updateActorId :: String
+  { updateActorId :: Maybe String
   , actorName :: Maybe String
   , actorX :: Maybe Int
   , actorY :: Maybe Int
@@ -638,10 +639,10 @@ data UpdateActor = UpdateActor
 
 updateActor :: Parser EntityAction
 updateActor = ActorA . ActorUpdate <$> (UpdateActor
-  <$> strOption
+  <$> optional (strOption
     (long "id"
     <> metavar "ACTOR-ID"
-    <> help "The ID of the actor to update")
+    <> help "The new ID of the Actor"))
   <*> optional (strOption
     ( long "name"
     <> short 'n'
