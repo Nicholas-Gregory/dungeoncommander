@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module DC.Actions (
   getAbilityScore,
@@ -51,7 +52,10 @@ module DC.Actions (
   setOutputEntities,
   addEntityToOutputEntities,
   setEntities,
-  deleteEntity
+  deleteEntity,
+  getEntitiesByIds,
+  removeEntityFromOutputEntities,
+  getFocusFromDaemon
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
@@ -61,20 +65,25 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef', readIORef)
 import Control.Monad.Reader (asks, MonadTrans (lift))
 import qualified Data.Map as M
-import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin)
+import System.IO (hPutStrLn, stderr, getContents', hIsTerminalDevice, stdin, hPrint)
 import DC.Error (AppError (AppError), newBaseError, ErrorDetail (OtherError, CliParseError, SocketError, JsonValidationError), throwBaseError, err, AppM)
 import System.Environment (getArgs)
 import DC.Parse (Parser(runParser))
-import Control.Applicative (Alternative(empty))
 import Control.Monad.Except (MonadError(throwError))
 import Network.Socket
 import Network.Socket.ByteString (sendAll, recv)
-import qualified Data.ByteString.Char8 as C
-import DC.Json (JsonValue (JsonObject, JsonString), jsonObject, FromJson (fromJson), JsonObjectMap, writeJsonValue, ToJson (toJson))
 import System.Timeout (timeout)
 import Data.Foldable (Foldable(foldl'))
-import qualified Data.Map as M
-import Data.IntMap (delete)
+import Debug.Trace (trace)
+import qualified Data.Aeson as JSON
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Key as K
+import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as C
+import DC.Error
+import qualified Data.Text as T
+import qualified Data.Vector as V
 
 getAbilityScore :: Entity -> Ability -> Either AppError Int
 getAbilityScore (Actor { cha }) Charisma = Right cha
@@ -168,10 +177,10 @@ saveEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", s
   stateRef <- asks state
 
   liftIO $ atomicModifyIORef' stateRef $ \st ->
-    let newEntities = M.insert k e (entities st)
+    let newEntities = KM.insert (K.fromString k) e (entities st)
     in (st { entities=newEntities }, ())
 
-addChild :: EntityChildType -> String -> String -> AppM Env ()
+addChild :: EntityChildType -> T.Text -> String -> AppM Env ()
 addChild t p c = err "addChild"
   [ ("child_type", show t)
   , ("parent_id", show p)
@@ -187,10 +196,10 @@ addChild t p c = err "addChild"
                  newChildren = case oldChildren of
                    EntityChildren xs -> EntityChildren (EntityChild { childType = t, childId = c } : xs)
              in parent { entityInfo = oldInfo { children = newChildren } }
-          ) p (entities st)
-    in (st { entities=newEntities }, ())
+          ) p (KM.toMapText $ entities st)
+    in (st { entities= KM.fromMapText newEntities }, ())
 
-removeChild :: EntityChildType -> String -> String -> AppM Env ()
+removeChild :: EntityChildType -> T.Text -> String -> AppM Env ()
 removeChild t p c = err "removeChild"
   [ ("child_type", show t)
   , ("parent_id", show p)
@@ -206,13 +215,13 @@ removeChild t p c = err "removeChild"
                 newChildren = case oldChildren of
                   EntityChildren xs -> EntityChildren (filter (\child -> childType child /= t && childId child /= c) xs)
             in parent { entityInfo = oldInfo { children = newChildren } }
-          ) p (entities st)
-    in (st { entities = newEntities }, ())
+          ) p (KM.toMapText $ entities st)
+    in (st { entities = KM.fromMapText newEntities }, ())
 
 tooFewArgumentsError :: AppM Env ()
 tooFewArgumentsError = liftIO $ hPutStrLn stderr "Too few arguments"
 
-getEntities :: AppM Env (M.Map String Entity)
+getEntities :: AppM Env (KM.KeyMap Entity)
 getEntities = err "getEntities" [] $ do
   stateRef <- asks state
   state <- liftIO $ readIORef stateRef
@@ -231,66 +240,71 @@ saveJsonToDaemon :: Socket -> AppM Env ()
 saveJsonToDaemon sock = err "saveJsonToDaemon" [] $ do
   entities <- getEntities
   r <- liftIO $ timeout 3000000 $ sendAll sock
-    $ C.pack $ "{ \"action\": \"save\", \"payload\": "
-    <> writeJsonValue (toJson entities) <> "}"
+    $ BS.toStrict 
+    $ BS.pack "{ \"action\": \"save\", \"payload\": "
+    <> JSON.encode entities <> BS.pack "}"
   sr <- liftIO $ timeout 3000000 $ recv sock 4096
 
   case r of
     Nothing -> throwBaseError $ SocketError "Socket timed out"
     Just _ -> case sr of
       Nothing -> throwBaseError $ SocketError "Socket timed out"
-      Just sr' -> case C.unpack sr' of
+      Just sr' -> case BS.unpack $ BS.fromStrict sr' of
         "SUCCESS" -> liftIO $ hPutStrLn stderr "[SYSTEM] Saved session state to disk"
         _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Daemon encountered an error (check logs)"
 
 sendFocusToDaemon :: Socket -> [String] -> AppM Env ()
 sendFocusToDaemon conn entityIds = err "sendFocusToDaemon" [("entity_ids", show entityIds)] $ do
   r <- liftIO $ timeout 3000000 $ sendAll conn
-    $ C.pack $ "{\"action\": \"focus\", \"payload\": "
-    <> writeJsonValue (toJson entityIds) <> "}"
+    $ BS.toStrict
+    $ BS.pack "{\"action\": \"focus\", \"payload\": "
+    <> JSON.encode entityIds <> BS.pack "}"
   sr <- liftIO $ timeout 3000000 $ recv conn 4096
 
   case (r, sr) of
-    (Just _, Just sr') -> case C.unpack sr' of
+    (Just _, Just sr') -> case BS.unpack $ BS.fromStrict sr' of
       "SUCCESS" -> liftIO $ hPutStrLn stderr $ "[SYSTEM] Entities focused: " <> unwords entityIds
       _ -> liftIO $ hPutStrLn stderr "[SYSTEM] Daemon encountered an error (check logs)"
     _ -> throwBaseError $ SocketError "Socket timed out"
 
-getJsonFromDaemon :: Socket -> AppM Env JsonValue
+getJsonFromDaemon :: Socket -> AppM Env JSON.Value
 getJsonFromDaemon sock = err "getJsonFromDaemon" [] $ do
-  liftIO $ sendAll sock $ C.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
+  liftIO $ sendAll sock 
+    $ BS.toStrict
+    $ BS.pack "{ \"action\": \"get\", \"payload\": \"all\"}"
   r <- liftIO $ timeout 3000000 $ recv sock 4096
-
+  
   case r of
     Nothing -> throwBaseError $ SocketError "Socket timed out"
-    Just d -> case runParser jsonObject (C.unpack d) of
-      Left e -> throwError e
-      Right o -> return $ JsonObject $ fst o
+    Just d -> case JSON.eitherDecode $ BS.fromStrict d :: Either String JSON.Value of
+      Left e -> throwBaseError $ ParseError e
+      Right o -> return o
 
-getJsonFromInput :: AppM Env JsonValue
+getJsonFromInput :: AppM Env JSON.Value
 getJsonFromInput = err "getJsonFromInput" [] $ do
-  input <- liftIO getContents
+  input <- liftIO B.getContents
+  
+  case JSON.eitherDecode $ BS.fromStrict input :: Either String JSON.Value of
+    Left e -> throwBaseError $ ParseError e
+    Right o -> return o
 
-  case runParser jsonObject input of
-    Left e -> throwError e
-    Right o -> return $ JsonObject $ fst o
-
-getJson :: Socket -> AppM Env JsonValue
+getJson :: Socket -> AppM Env JSON.Value
 getJson sock = do
-  isTerm <- liftIO $ hIsTerminalDevice stdin
+  isTerm <- asks isTerm
+
   if isTerm
     then do getJsonFromDaemon sock
     else getJsonFromInput
 
-initCurrentScene :: JsonValue -> AppM Env ()
-initCurrentScene (JsonObject o) = err "initCurrentScene" [("input_json", show o)] $ do
-  case M.lookup "currentScene" o of
+initCurrentScene :: JSON.Value -> AppM Env ()
+initCurrentScene (JSON.Object o) = err "initCurrentScene" [("input_json", show o)] $ do
+  case KM.lookup "currentScene" o of
     Nothing -> throwBaseError $ JsonValidationError "No \"currentScene\" field in input JSON"
-    Just (JsonString s) -> do
+    Just (JSON.String s) -> do
       stateRef <- asks state
 
       liftIO $ atomicModifyIORef' stateRef $ \st ->
-        (st { currentScene = s }, ())
+        (st { currentScene = T.unpack s }, ())
     Just x -> throwBaseError
       $ JsonValidationError
       $ "Expected JSON String for \"currentScene\", found: "
@@ -298,22 +312,22 @@ initCurrentScene (JsonObject o) = err "initCurrentScene" [("input_json", show o)
 initCurrentScene x = err "initCurrentScene" [("input_json", show x)] $ throwBaseError
   $ JsonValidationError "Expected JSON Object"
 
-getEntityJson :: JsonValue -> AppM Env (M.Map String JsonValue)
-getEntityJson (JsonObject o) = err "getEntityJson" [("input_json", show o)] $ do
-  case M.lookup "entities" o of
+getEntityJson :: JSON.Value -> AppM Env (KM.KeyMap JSON.Value)
+getEntityJson (JSON.Object o) = err "getEntityJson" [("input_json", show o)] $ do
+  case KM.lookup "entities" o of
     Nothing -> throwBaseError $ JsonValidationError "Need \"entities\" field in input JSON"
-    Just (JsonObject entities) -> return entities
+    Just (JSON.Object entities) -> return entities
     Just _ -> throwBaseError $ JsonValidationError "Expected JSON Object for \"entities\" field"
 getEntityJson x = err "getEntityJson" [("input_json", show x)] $ throwBaseError
   $ JsonValidationError "Expected JSON Object"
 
-initEntities :: JsonValue -> AppM Env ()
+initEntities :: JSON.Value -> AppM Env ()
 initEntities o = err "initEntities" [("input_json", show o)] $ do
   entityMap <- getEntityJson o
 
-  case traverse fromJson entityMap of
-    Left e -> throwError e
-    Right entities -> do
+  case traverse (\v -> JSON.fromJSON v :: JSON.Result Entity) entityMap of
+    JSON.Error e -> throwBaseError $ JsonValidationError e
+    JSON.Success entities -> do
       stateRef <- asks state
 
       liftIO $ atomicModifyIORef' stateRef $ \st ->
@@ -332,62 +346,62 @@ getEntityById entityId = err "getEntityById" [("entity_id", show entityId)] $ do
   gameState <- liftIO $ readIORef stateRef
   let gameEntities = entities gameState
 
-  case M.lookup entityId gameEntities of
+  case KM.lookup (K.fromString entityId) gameEntities of
     Nothing -> throwBaseError $ OtherError "Entity with this ID does not exist in state"
     Just entity -> return entity
 
-getScenes :: AppM Env (M.Map String Entity)
-getScenes = M.filter (\case
+getScenes :: AppM Env (KM.KeyMap Entity)
+getScenes = KM.filter (\case
   (Scene _ _) -> True
   _ -> False) <$> getEntities
 
-getActors :: AppM Env (M.Map String Entity)
-getActors = M.filter (\case
+getActors :: AppM Env (KM.KeyMap Entity)
+getActors = KM.filter (\case
   (Actor {}) -> True
   _ -> False) <$> getEntities
 
-getObjects :: AppM Env (M.Map String Entity)
-getObjects = M.filter (\case
+getObjects :: AppM Env (KM.KeyMap Entity)
+getObjects = KM.filter (\case
   (Object {}) -> True
   _ -> False) <$> getEntities
 
-getTraps :: AppM Env (M.Map String Entity)
-getTraps = M.filter (\case
+getTraps :: AppM Env (KM.KeyMap Entity)
+getTraps = KM.filter (\case
   (Trap {}) -> True
   _ -> False) <$> getEntities
 
-getItems :: AppM Env (M.Map String Entity)
-getItems = M.filter (\case
+getItems :: AppM Env (KM.KeyMap Entity)
+getItems = KM.filter (\case
   (Item {}) -> True
   _ -> False) <$> getEntities
 
-getArmors :: AppM Env (M.Map String Entity)
-getArmors = M.filter (\case
+getArmors :: AppM Env (KM.KeyMap Entity)
+getArmors = KM.filter (\case
   (Armor {}) -> True
   _ -> False) <$> getEntities
 
-getWeapons :: AppM Env (M.Map String Entity)
-getWeapons = M.filter (\case
+getWeapons :: AppM Env (KM.KeyMap Entity)
+getWeapons = KM.filter (\case
   (Weapon {}) -> True
   _ -> False) <$> getEntities
 
-getContainers :: AppM Env (M.Map String Entity)
-getContainers = M.filter (\case
+getContainers :: AppM Env (KM.KeyMap Entity)
+getContainers = KM.filter (\case
   (Container {}) -> True
   _ -> False) <$> getEntities
 
-getMounts :: AppM Env (M.Map String Entity)
-getMounts = M.filter (\case
+getMounts :: AppM Env (KM.KeyMap Entity)
+getMounts = KM.filter (\case
   (Mount {}) -> True
   _ -> False) <$> getEntities
 
-getSpells :: AppM Env (M.Map String Entity)
-getSpells = M.filter (\case
+getSpells :: AppM Env (KM.KeyMap Entity)
+getSpells = KM.filter (\case
   (Spell {}) -> True
   _ -> False) <$> getEntities
 
-getMoney :: AppM Env (M.Map String Entity)
-getMoney = M.filter (\case
+getMoney :: AppM Env (KM.KeyMap Entity)
+getMoney = KM.filter (\case
   (Money {}) -> True
   _ -> False) <$> getEntities
 
@@ -446,11 +460,11 @@ printActor v eid = err "printActor"
           <> ", Hit Dice: " <> eHd
           <> ", Armor Class: " <> show eAc
           <> ", Level: " <> show eL
-          <> ", Save Proficiencies: " <> foldl' (++) "" (map (\p -> case toJson p of 
-            JsonString s -> s <> ", "
+          <> ", Save Proficiencies: " <> foldl' (++) "" (map (\p -> case JSON.toJSON p of 
+            JSON.String s -> T.unpack s <> ", "
             _ -> "") (case saveProficiencies entity of SaveProficiencies a -> a))
-          <> ", Weapon Proficiencies: " <> foldl' (++) "" (map (\p -> case toJson p of 
-          JsonString s -> s <> ", "
+          <> ", Weapon Proficiencies: " <> foldl' (++) "" (map (\p -> case JSON.toJSON p of 
+          JSON.String s -> T.unpack s <> ", "
           _ -> "") (case weaponProficiencies entity of WeaponProficiencies a -> a))
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
@@ -536,7 +550,7 @@ printItem v eid = err "printItem"
     let info = entityInfo entity
         eName = name info
         (EntityChildren eChildren) = children info
-        iiJson = writeJsonValue (toJson (itemInfo entity))
+        iiJson = BS.unpack $ JSON.encode (itemInfo entity)
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString <> ", ItemInfo: " <> iiJson
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
@@ -556,7 +570,7 @@ printArmor v eid = err "printArmor"
     let info = entityInfo entity
         eName = name info
         (EntityChildren eChildren) = children info
-        iiJson = writeJsonValue (toJson (itemInfo entity))
+        iiJson = BS.unpack $ JSON.encode (itemInfo entity)
         eAc = ac entity
         eStr = str entity
         eSd = stealthDisadvantage entity
@@ -585,7 +599,7 @@ printWeapon v eid = err "printWeapon"
     let info = entityInfo entity
         eName = name info
         (EntityChildren eChildren) = children info
-        iiJson = writeJsonValue (toJson (itemInfo entity))
+        iiJson = BS.unpack $ JSON.encode (itemInfo entity)
         d = weaponDamage entity
         props = properties entity
         w = weapon entity
@@ -593,8 +607,8 @@ printWeapon v eid = err "printWeapon"
         vStatsString = vNameString
           <> ", ItemInfo: " <> iiJson
           <> ", Damage: " <> show d
-          <> ", Properties: " <> foldl' (++) "" (map (\p -> case toJson p of 
-            JsonString s -> s
+          <> ", Properties: " <> foldl' (++) "" (map (\p -> case JSON.toJSON p of 
+            JSON.String s -> T.unpack s
             _ -> "") (case props of WeaponProperties a -> a))
           <> ", Weapon: " <> show w
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
@@ -614,7 +628,7 @@ printContainer v eid = err "printContainer"
     let info = entityInfo entity
         eName = name info
         (EntityChildren eChildren) = children info
-        iiJson = writeJsonValue (toJson (itemInfo entity))
+        iiJson = BS.unpack $ JSON.encode (itemInfo entity)
         cap = capacity entity
         vNameString = "ID: " <> eid <> ", Name: " <> eName
         vStatsString = vNameString <> ", ItemInfo: " <> iiJson <> ", Capacity: " <> cap
@@ -705,7 +719,7 @@ printMoney v eid = err "printMoney"
       Stats -> liftIO $ hPutStrLn stderr vStatsString
       All -> liftIO $ hPutStrLn stderr vAllString
 
-setOutputEntities :: M.Map String Entity -> AppM Env ()
+setOutputEntities :: KM.KeyMap Entity -> AppM Env ()
 setOutputEntities entities = err "setOutputEntities" [("new_entities", show entities)] $ do
   stateRef <- asks state
   gameState <- liftIO $ readIORef stateRef
@@ -721,11 +735,20 @@ addEntityToOutputEntities id entity = err "addEntityToOutputEntities" [("entity"
   gameState <- liftIO $ readIORef stateRef
   let oldOutput = output gameState
   let oldEntities = outEntities oldOutput
-  let newEntities = M.insert id entity oldEntities
+  let newEntities = KM.insert (K.fromString id) entity oldEntities
 
   setOutputEntities newEntities
 
-setEntities :: M.Map String Entity -> AppM Env ()
+removeEntityFromOutputEntities :: String -> AppM Env ()
+removeEntityFromOutputEntities id = err "removeEntityFromOutputEntities" [("entity_id", show id)] $ do
+  stateRef <- asks state
+  gameState <- liftIO $ readIORef stateRef
+  let oldOutput = output gameState
+  let oldEntities = outEntities oldOutput
+
+  setOutputEntities $ KM.delete (K.fromString id) oldEntities
+
+setEntities :: KM.KeyMap Entity -> AppM Env ()
 setEntities entities = err "setEntities" [("entities", show entities)] $ do
   stateRef <- asks state
 
@@ -736,4 +759,27 @@ deleteEntity :: String -> AppM Env ()
 deleteEntity id = err "deleteEntity" [("entity_id", show id)] $ do
   entities <- getEntities
   
-  setEntities $ M.delete id entities
+  setEntities $ KM.delete (K.fromString id) entities
+
+getEntitiesByIds :: [String] -> AppM Env (KM.KeyMap Entity)
+getEntitiesByIds ids = err "getEntitiesByIds" [("entity_ids", show ids)] $ do
+  entities <- getEntities
+
+  return $ case ids of
+    [] -> entities
+    ids' -> KM.filterWithKey (\k _ -> k `elem` map K.fromString ids') entities
+
+getFocusFromDaemon :: AppM Env [String]
+getFocusFromDaemon = err "getFocusFromDaemon" [] $ do
+  conn <- refreshSocketConn
+  liftIO $ sendAll conn $ C.pack "{ \"action\": \"get\", \"payload\": \"focus\" }"
+  r <- liftIO $ timeout 3000000 $ recv conn 4096
+  
+  case r of
+    Nothing -> throwBaseError $ SocketError "Socket timed out"
+    Just d -> case JSON.eitherDecode $ BS.fromStrict d :: Either String JSON.Value of
+      Left e -> throwBaseError $ ParseError e
+      Right (JSON.Array a) -> return $ map (\case
+        (JSON.String s) -> T.unpack s
+        _ -> "unknown input from daemon") (V.toList a)
+      Right _ -> throwBaseError $ JsonValidationError "Expected JSON array for focus list"
