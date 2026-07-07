@@ -640,7 +640,7 @@ data UpdateActor = UpdateActor
 updateActor :: Parser EntityAction
 updateActor = ActorA . ActorUpdate <$> (UpdateActor
   <$> optional (strOption
-    (long "id"
+    (long "new-id"
     <> metavar "ACTOR-ID"
     <> help "The new ID of the Actor"))
   <*> optional (strOption

@@ -19,7 +19,7 @@ import Data.Map (mapMaybe)
 import Control.Monad.Except
 import Control.Monad.Trans.Reader
 import Data.IORef
-import Control.Monad.Trans (MonadIO(liftIO))
+import Control.Monad.Trans (MonadIO(liftIO), MonadTrans (lift))
 import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types 
@@ -46,6 +46,8 @@ processCommand _ (SceneA (SceneCreate (CreateScene id sName x y))) = do
     saveEntity id entity
     addEntityToOutputEntities id entity
 processCommand scenes (SceneA (SceneUpdate (UpdateScene nId sName x y))) = do
+  when (KM.size scenes > 1 && isJust nId) 
+        $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
   traverse_ (\(k, s) -> do
     let id = K.toString k
     let newId = fromMaybe id nId
@@ -97,6 +99,9 @@ processCommand _ (ActorA (ActorCreate (CreateActor id name x y cHp mHp cha int c
 processCommand actors (ActorA (ActorUpdate (UpdateActor nId nName x y cHp mHp ncha nint ncon nstr ndex nwis hd nac l sp wp))) = do
   case (sequenceA sp, sequenceA wp) of
     (Right sp', Right wp') -> do
+      when (KM.size actors > 1 && isJust nId) 
+        $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
       traverse_ (\(k, a) -> do
         let id = K.toString k
         let newId = fromMaybe id nId
