@@ -146,6 +146,87 @@ processCommand actors (ActorA (ActorUpdate (UpdateActor nId nName x y cHp mHp nc
     (Left _, Right _) -> throwBaseError $ ParseError "Unknown save proficiency"
     (Right _, Left _) -> throwBaseError $ ParseError "Unkown weapon proficiency"
     (Left _, Left _) -> throwBaseError $ ParseError "Unkown save proficiency, unknown weapon proficiency"
+processCommand actors (ActorA ActorDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList actors
+processCommand objects (ObjectA (ObjectCreate (CreateObject id n ac mhp chp x y))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let entity = Object
+        { entityInfo = info
+        , ac = ac
+        , maxHp = mhp
+        , currentHp = chp
+        , position = (x, y)}
+
+  saveEntity id entity
+  addEntityToOutputEntities id entity
+processCommand objects (ObjectA (ObjectUpdate (UpdateObject nid n nac mhp chp x y))) = do
+  when (KM.size objects > 1 && isJust nid)
+    $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+  traverse_ (\(k, o) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo o) n
+    let newAc = fromMaybe (ac o) nac
+    let newMaxHp = fromMaybe (maxHp o) mhp
+    let newCurrentHp = fromMaybe (currentHp o) chp
+    let newX = fromMaybe (fst $ position o) x
+    let newY = fromMaybe (snd $ position o) y
+    let newInfo = (entityInfo o) { name = newName }
+    let newObject = Object
+          { entityInfo = newInfo
+          , ac = newAc
+          , maxHp = newMaxHp
+          , currentHp = newCurrentHp
+          , position = (newX, newY)}
+          
+    saveEntity newId newObject
+    addEntityToOutputEntities newId newObject
+    
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList objects
+processCommand objects (ObjectA ObjectDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList objects
+processCommand _ (TrapA (TrapCreate (CreateTrap id n ddc ab sdc d x y))) = do
+  let newInfo = EntityInfo { name = n, children = EntityChildren [] }
+  let newTrap = Trap
+        { detectDc = ddc
+        , attackBonus = ab
+        , saveDc = sdc
+        , trapDamage = d
+        , position = (x, y)
+        , entityInfo = newInfo}
+
+  saveEntity id newTrap
+  addEntityToOutputEntities id newTrap
+processCommand traps (TrapA (TrapUpdate (UpdateTrap nid n ddc ab sdc d x y))) = do
+  when (KM.size traps > 1 && isJust nid)
+    $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+  traverse_ (\(k, t) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo t) n
+    let newDetectDc = fromMaybe (detectDc t) ddc
+    let newAttackBonus = fromMaybe (attackBonus t) ab
+    let newSaveDc = fromMaybe (saveDc t) sdc
+    let newDamage = fromMaybe (trapDamage t) d
+    let newX = fromMaybe (fst $ position t) x
+    let newY = fromMaybe (snd $ position t) y
+    let newInfo = (entityInfo t) { name = newName }
+    let newTrap = Trap
+          { entityInfo = newInfo
+          , detectDc = newDetectDc
+          , attackBonus = newAttackBonus
+          , saveDc = newSaveDc
+          , trapDamage = newDamage
+          , position = (newX, newY)}
+    
+    saveEntity newId newTrap
+    addEntityToOutputEntities newId newTrap
+    
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList traps
+processCommand traps (TrapA TrapDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList traps
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -157,22 +238,34 @@ runApp opts sock = do
 
   case opts of
     RootOptions _ verbosity _ _ (Just rootCommand) -> 
-          let baseEntities e = case rootCommand of
+          let baseEntities = case rootCommand of
                 (SceneCommand {}) -> KM.filter (\case
                   Scene {} -> True
-                  _ -> False) e
+                  _ -> False)
                 (ActorCommand {}) -> KM.filter (\case
                   Actor {} -> True
-                  _ -> False) e
+                  _ -> False)
+                (ObjectCommand {}) -> KM.filter (\case
+                  Object {} -> True
+                  _ -> False)
+                (TrapCommand {}) -> KM.filter (\case
+                  Trap {} -> True
+                  _ -> False)
               opt = case rootCommand of
                 (SceneCommand opt) -> opt
                 (ActorCommand opt) -> opt
+                (ObjectCommand opt) -> opt
+                (TrapCommand opt) -> opt
               filteringCondition = case opt of
                 (SceneOptions ids filterX filterY _) -> not (null ids) || isJust (filterX <|> filterY)
                 (ActorOptions ids filterX filterY filterCHp filterMHp filterCha filterInt filterCon filterStr filterDex filterWis filterHd filterAc filterLevel _) -> not (null ids) || isJust (filterX <|> filterY <|> filterCHp)
+                (ObjectOptions ids filterX filterY filterAc filterMhp filterChp _) -> not (null ids) || isJust (filterX <|> filterY <|> filterAc <|> filterMhp <|> filterChp)
+                (TrapOptions ids filterX filterY filterDdc filterAb filterSdc _) -> not (null ids) || isJust (filterX <|> filterY <|> filterDdc <|> filterAb <|> filterSdc)
               ids = case opt of
                 (SceneOptions ids _ _ _) -> ids
                 (ActorOptions { actorIds = ids }) -> ids
+                (ObjectOptions { objectIds = ids }) -> ids
+                (TrapOptions { trapIds = ids }) -> ids
               filters = case opt of
                 (SceneOptions _ filterX filterY _) ->
                   [ \s -> maybe True (\fx -> fx == fst (dimensions s)) filterX
@@ -191,6 +284,18 @@ runApp opts sock = do
                   , \a -> maybe True (\fHd -> fHd == hitDice a) filterHd
                   , \a -> maybe True (\fAc -> fAc == ac a) filterAc
                   , \a -> maybe True (\fL -> fL == level a) filterLevel]
+                (ObjectOptions _ filterX filterY filterAc filterMhp filterChp _) ->
+                  [ \o -> maybe True (\fx -> fx == fst (position o)) filterX
+                  , \o -> maybe True (\fy -> fy == snd (position o)) filterY
+                  , \o -> maybe True (\fac -> fac == ac o) filterAc
+                  , \o -> maybe True (\fmhp -> fmhp == maxHp o) filterMhp
+                  , \o -> maybe True (\fchp -> fchp == currentHp o) filterChp]
+                (TrapOptions _ filterX filterY filterDdc filterAb filterSdc _) ->
+                  [ \t -> maybe True (\fx -> fx == fst (position t)) filterX
+                  , \t -> maybe True (\fy -> fy == snd (position t)) filterY
+                  , \t -> maybe True (\fddc -> fddc == detectDc t) filterDdc
+                  , \t -> maybe True (\fab -> fab == attackBonus t) filterAb
+                  , \t -> maybe True (\fsdc -> fsdc == saveDc t) filterSdc]
           in if filteringCondition
             then do
               -- CLI entity selection, filtering by command options

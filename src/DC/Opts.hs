@@ -5,8 +5,6 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- ObjectOptions(..),
- TrapOptions(..),
  ItemOptions(..),
  WeaponOptions(..),
  ContainerOptions(..),
@@ -38,7 +36,9 @@ module DC.Opts (
  EntityAction(..),
  AddActorScene(..),
  EntityOption(..),
- UpdateActor(..)
+ UpdateActor(..),
+ UpdateObject(..),
+ UpdateTrap(..)
 ) where
 
 import Options.Applicative
@@ -51,8 +51,8 @@ data Command
   = RollCommand RollOptions
   | SceneCommand EntityOption
   | ActorCommand EntityOption
-  | ObjectCommand ObjectOptions
-  | TrapCommand TrapOptions
+  | ObjectCommand EntityOption
+  | TrapCommand EntityOption
   | ItemCommand ItemOptions
   | ArmorCommand ArmorOptions
   | WeaponCommand WeaponOptions
@@ -92,8 +92,24 @@ data EntityOption
     , actorFilterLevel :: Maybe Int
     , entityCommand :: Maybe EntityAction
     }
-  | ObjectOpt ObjectOptions
-  | TrapOpt TrapOptions
+  | ObjectOptions
+    { objectIds :: [String]
+    , objectFilterX :: Maybe Int
+    , objectFilterY :: Maybe Int
+    , objectFilterAc :: Maybe Int
+    , objectFilterMaxHp :: Maybe Int
+    , objectFilterCurrentHp :: Maybe Int
+    , objectCommand :: Maybe ObjectAction
+    }
+  | TrapOptions
+    { trapIds :: [String]
+    , trapFilterX :: Maybe Int
+    , trapFilterY :: Maybe Int
+    , trapFilterDetectDc :: Maybe Int
+    , trapFilterAttackBonus :: Maybe Int
+    , trapFilterSaveDc :: Maybe Int
+    , trapCommand :: Maybe TrapAction
+    }
   | ItemOpt ItemOptions
   | ArmorOpt ArmorOptions
   | WeaponOpt WeaponOptions
@@ -715,7 +731,7 @@ updateActor = ActorA . ActorUpdate <$> (UpdateActor
 -- Object
 data ObjectAction
   = ObjectCreate CreateObject
-  | ObjectDelete DeleteObject
+  | ObjectDelete
   | ObjectUpdate UpdateObject
   deriving (Show, Eq)
 
@@ -761,15 +777,6 @@ createObject = ObjectCreate <$> (CreateObject
     <> metavar "INTEGER"
     <> help "The Y coordinate of the new Object"))
 
-data DeleteObject = DeleteObject { deleteObjectId :: Maybe String } deriving (Show, Eq)
-
-deleteObject :: Parser ObjectAction
-deleteObject = ObjectDelete <$> (DeleteObject
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "The ID of the Object to delete")))
-
 data UpdateObject = UpdateObject
   { updateObjectId :: Maybe String
   , updateObjectName :: Maybe String
@@ -812,17 +819,7 @@ updateObject = ObjectUpdate <$> (UpdateObject
     <> metavar "INTEGER"
     <> help "The new Y coordinate of the Object")))
 
-data ObjectOptions = ObjectOptions
-  { objectIds :: [String]
-  , objectFilterX :: Maybe Int
-  , objectFilterY :: Maybe Int
-  , objectFilterAc :: Maybe Int
-  , objectFilterMaxHp :: Maybe Int
-  , objectFilterCurrentHp :: Maybe Int
-  , objectCommand :: Maybe ObjectAction
-  } deriving (Show, Eq)
-
-objectOptions :: Parser ObjectOptions
+objectOptions :: Parser EntityOption
 objectOptions = ObjectOptions
   <$> many (strOption ( long "id" <> metavar "OBJECT" <> help "The ID of an Object"))
   <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Objects by X coordinate"))
@@ -832,13 +829,13 @@ objectOptions = ObjectOptions
   <*> optional (option auto ( long "filter-current-hp" <> metavar "INTEGER" <> help "Filter Objects by current HP"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createObject) (progDesc "Create an Object"))
-    <> command "delete" (info (helper <*> deleteObject) (progDesc "Delete an Object"))
+    <> command "delete" (info (helper <*> pure ObjectDelete) (progDesc "Delete an Object"))
     <> command "update" (info (helper <*> updateObject) (progDesc "Update an Object"))))
 
 -- Trap
 data TrapAction
   = TrapCreate CreateTrap
-  | TrapDelete DeleteTrap
+  | TrapDelete
   | TrapUpdate UpdateTrap
   deriving (Show, Eq)
 
@@ -874,13 +871,6 @@ createTrap = TrapCreate <$> (CreateTrap
 
   )
 
-data DeleteTrap = DeleteTrap { deleteTrapId :: Maybe String } deriving (Show, Eq)
-
-deleteTrap :: Parser TrapAction
-deleteTrap = TrapDelete <$> (DeleteTrap
-  <$> optional (strOption
-    ( long "id" <> metavar "ID" <> help "ID of the Trap to delete")))
-
 data UpdateTrap = UpdateTrap
   { updateTrapId :: Maybe String
   , updateTrapName :: Maybe String
@@ -893,7 +883,7 @@ data UpdateTrap = UpdateTrap
   } deriving (Show, Eq)
 updateTrap :: Parser TrapAction
 updateTrap = TrapUpdate <$> (UpdateTrap
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Trap to update"))
+  <$> optional (strOption ( long "id" <> metavar "ID" <> help "The new ID of the trap"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (option auto ( long "detect-dc" <> metavar "INTEGER" <> help "New Detect DC"))
   <*> optional (option auto ( long "attack-bonus" <> metavar "INTEGER" <> help "New attack bonus"))
@@ -902,17 +892,7 @@ updateTrap = TrapUpdate <$> (UpdateTrap
   <*> optional (option auto ( short 'x' <> metavar "INTEGER" <> help "New X coordinate"))
   <*> optional (option auto ( short 'y' <> metavar "INTEGER" <> help "New Y coordinate")))
 
-data TrapOptions = TrapOptions
-  { trapIds :: [String]
-  , trapFilterX :: Maybe Int
-  , trapFilterY :: Maybe Int
-  , trapFilterDetectDc :: Maybe Int
-  , trapFilterAttackBonus :: Maybe Int
-  , trapFilterSaveDc :: Maybe Int
-  , trapCommand :: Maybe TrapAction
-  } deriving (Show, Eq)
-
-trapOptions :: Parser TrapOptions
+trapOptions :: Parser EntityOption
 trapOptions = TrapOptions
   <$> many (strOption ( long "id" <> metavar "TRAP" <> help "The ID of a Trap"))
   <*> optional (option auto ( long "filter-x" <> metavar "INTEGER" <> help "Filter Traps by X coordinate"))
@@ -922,7 +902,7 @@ trapOptions = TrapOptions
   <*> optional (option auto ( long "filter-save-dc" <> metavar "INTEGER" <> help "Filter Traps by save DC"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createTrap) (progDesc "Create a Trap"))
-    <> command "delete" (info (helper <*> deleteTrap) (progDesc "Delete a Trap"))
+    <> command "delete" (info (helper <*> pure TrapDelete) (progDesc "Delete a Trap"))
     <> command "update" (info (helper <*> updateTrap) (progDesc "Update a Trap"))))
 
 -- Item
