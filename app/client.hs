@@ -346,6 +346,42 @@ processCommand weapons (WeaponA (WeaponUpdate (UpdateWeapon nid n c we d dt wp w
           saveEntity newId newWeapon
         _ -> throwBaseError $ ParseError "Undefined damage or weapon type") $ KM.toList weapons
   Left e -> throwError e
+processCommand weapons (WeaponA WeaponDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList weapons
+processCommand containers (ContainerA (ContainerCreate (CreateContainer id n c w cap))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let iInfo = ItemInfo { cost = c, weight = w }
+  let newContainer = Container
+        { entityInfo = info
+        , itemInfo = iInfo
+        , capacity = cap}
+
+  saveEntity id newContainer
+  addEntityToOutputEntities id newContainer
+processCommand containers (ContainerA (ContainerUpdate (UpdateContainer nid n co w cap))) = do
+  when (KM.size containers > 1 && isJust nid)
+    $ do throwBaseError $ OtherError "Can't update more than one ID simultaneously"
+
+  traverse_ (\(k, c) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo c) n
+    let newCost = fromMaybe (cost $ itemInfo c) co
+    let newWeight = fromMaybe (weight $ itemInfo c) w
+    let newCapacity = fromMaybe (capacity c) cap
+    let newInfo = (entityInfo c) { name = newName }
+    let newItemInfo = ItemInfo { cost = newCost, weight = newWeight }
+    let newContainer = Container
+          { entityInfo = newInfo
+          , itemInfo = newItemInfo
+          , capacity = newCapacity}
+          
+    saveEntity newId newContainer
+    addEntityToOutputEntities newId newContainer
+    
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList containers
+processCommand containers (ContainerA ContainerDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList containers
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do

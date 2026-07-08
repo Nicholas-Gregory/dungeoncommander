@@ -5,7 +5,6 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- ContainerOptions(..),
  MountOptions(..),
  SpellOptions(..),
  MoneyOptions(..),
@@ -38,7 +37,8 @@ module DC.Opts (
  UpdateTrap(..),
  UpdateItem(..),
  UpdateArmor(..),
- UpdateWeapon(..)
+ UpdateWeapon(..),
+ UpdateContainer(..)
 ) where
 
 import Options.Applicative
@@ -56,7 +56,7 @@ data Command
   | ItemCommand EntityOption
   | ArmorCommand EntityOption
   | WeaponCommand EntityOption
-  | ContainerCommand ContainerOptions
+  | ContainerCommand EntityOption
   | MountCommand MountOptions
   | SpellCommand SpellOptions
   | MoneyCommand MoneyOptions
@@ -131,7 +131,11 @@ data EntityOption
     , weaponFilterWeapon :: Maybe String
     , weaponCommand :: Maybe EntityAction
     }
-  | ContainerOpt ContainerOptions
+  | ContainerOptions
+    { containerIds :: [String]
+    , containerFilterCapacity :: Maybe String
+    , entityCommand :: Maybe EntityAction
+    }
   | MountOpt MountOptions
   | SpellOpt SpellOptions
   | MoneyOpt MoneyOptions
@@ -1174,7 +1178,7 @@ weaponOptions = WeaponOptions
 -- Container
 data ContainerAction
   = ContainerCreate CreateContainer
-  | ContainerDelete DeleteContainer
+  | ContainerDelete
   | ContainerUpdate UpdateContainer
   deriving (Show, Eq)
 
@@ -1186,22 +1190,13 @@ data CreateContainer = CreateContainer
   , createContainerCapacity :: String
   } deriving (Show, Eq)
 
-createContainer :: Parser ContainerAction
-createContainer = ContainerCreate <$> (CreateContainer
+createContainer :: Parser EntityAction
+createContainer = ContainerA . ContainerCreate <$> (CreateContainer
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Container")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Container")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight")
   <*> strOption ( long "capacity" <> metavar "CAPACITY" <> help "Capacity"))
-
-data DeleteContainer = DeleteContainer { deleteContainerId :: Maybe String } deriving (Show, Eq)
-
-deleteContainer :: Parser ContainerAction
-deleteContainer = ContainerDelete <$> (DeleteContainer
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Container to delete")))
 
 data UpdateContainer = UpdateContainer
   { updateContainerId :: Maybe String
@@ -1211,27 +1206,22 @@ data UpdateContainer = UpdateContainer
   , updateContainerCapacity :: Maybe String
   } deriving (Show, Eq)
 
-updateContainer :: Parser ContainerAction
-updateContainer = ContainerUpdate <$> (UpdateContainer
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Container to update"))
+updateContainer :: Parser EntityAction
+updateContainer = ContainerA . ContainerUpdate <$> (UpdateContainer
+  <$> optional (strOption ( long "id" <> metavar "ID" <> help "New ID of the container"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight"))
   <*> optional (strOption ( long "capacity" <> metavar "CAPACITY" <> help "New capacity")))
 
-data ContainerOptions = ContainerOptions
-  { containerIds :: [String]
-  , containerFilterCapacity :: Maybe String
-  , containerCommand :: Maybe ContainerAction
-  } deriving (Show, Eq)
 
-containerOptions :: Parser ContainerOptions
+containerOptions :: Parser EntityOption
 containerOptions = ContainerOptions
   <$> many (strOption ( long "id" <> metavar "CONTAINER" <> help "The ID of a Container"))
   <*> optional (strOption ( long "filter-capacity" <> metavar "CAPACITY" <> help "Filter Containers by capacity"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createContainer) (progDesc "Create Container"))
-    <> command "delete" (info (helper <*> deleteContainer) (progDesc "Delete Container"))
+    <> command "delete" (info (helper <*> pure (ContainerA ContainerDelete)) (progDesc "Delete Container"))
     <> command "update" (info (helper <*> updateContainer) (progDesc "Update Container"))))
 
 -- Mount
