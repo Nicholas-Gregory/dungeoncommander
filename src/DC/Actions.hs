@@ -150,7 +150,7 @@ hasWeaponProficiency e x = Left
   <> show x
 
 attackRoll :: StdGen -> Entity -> Entity -> Ability -> Int -> Either AppError CheckSuccess
-attackRoll gen (Weapon { weapon }) entity ability dc = do
+attackRoll gen (WeaponEntity { weapon }) entity ability dc = do
   abilityModifier <- getAbilityModifier entity ability
   proficiencyBonus <- getProficiencyBonus entity
   hasProficiency <- (case weapon of
@@ -382,7 +382,7 @@ getArmors = KM.filter (\case
 
 getWeapons :: AppM Env (KM.KeyMap Entity)
 getWeapons = KM.filter (\case
-  (Weapon {}) -> True
+  (WeaponEntity {}) -> True
   _ -> False) <$> getEntities
 
 getContainers :: AppM Env (KM.KeyMap Entity)

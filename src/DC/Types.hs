@@ -317,7 +317,7 @@ data Entity =
     stealthDisadvantage :: Bool,
     armorType :: String
   } |
-  Weapon {
+  WeaponEntity {
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
     weaponDamage :: (String, DamageType),

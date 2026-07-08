@@ -120,6 +120,7 @@ processCommand actors (ActorA (ActorUpdate (UpdateActor nId nName x y cHp mHp nc
         let newHd = fromMaybe (hitDice a) hd
         let newAc = fromMaybe (ac a) nac
         let newLevel = fromMaybe (level a) l
+        let newWeaponProficiencies = if null wp' then weaponProficiencies a else WeaponProficiencies wp'
         let newInfo = (entityInfo a) { name = newName }
         let newActor = Actor 
               { entityInfo = newInfo
@@ -135,7 +136,7 @@ processCommand actors (ActorA (ActorUpdate (UpdateActor nId nName x y cHp mHp nc
               , hitDice = newHd
               , ac = newAc
               , level = newLevel
-              , weaponProficiencies = WeaponProficiencies wp'
+              , weaponProficiencies = newWeaponProficiencies
               , saveProficiencies = SaveProficiencies sp'}
         
         saveEntity newId newActor
@@ -306,7 +307,7 @@ processCommand _ (WeaponA (WeaponCreate (CreateWeapon id n c w d dt wp wn))) = d
     (Right dt', Right wp', Right wn') -> do
       let info = EntityInfo { name = n, children = EntityChildren [] }
       let iInfo = ItemInfo { cost = c, weight = w }
-      let newWeapon = Weapon
+      let newWeapon = WeaponEntity
             { entityInfo = info
             , itemInfo = iInfo
             , weaponDamage = (d, dt')
@@ -316,7 +317,35 @@ processCommand _ (WeaponA (WeaponCreate (CreateWeapon id n c w d dt wp wn))) = d
       saveEntity id newWeapon
       addEntityToOutputEntities id newWeapon
     _ -> throwBaseError $ OtherError "Unexpected weapon type, weapon properties, or damage type"
-processCommand weapons (WeaponA (WeaponUpdate (UpdateWeapon nid n c w d dt wp wn))) = undefined
+processCommand weapons (WeaponA (WeaponUpdate (UpdateWeapon nid n c we d dt wp wn))) = case sequenceA wp of
+  Right wp' -> do
+    when (KM.size weapons > 1 && isJust nid) 
+      $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+    traverse_ (\(k, w) -> do
+      let id = K.toString k
+      let newId = fromMaybe id nid
+      let newName = fromMaybe (name $ entityInfo w) n
+      let newCost = fromMaybe (cost $ itemInfo w) c
+      let newWeight = fromMaybe (weight $ itemInfo w) we
+      let newDamage = fromMaybe (fst $ weaponDamage w) d
+      let eNewDamageType = fromMaybe (Right $ snd $ weaponDamage w) dt
+      let eNewWeapon = fromMaybe (Right $ weapon w) wn
+      let newWeaponProperties = if null wp' then properties w else WeaponProperties wp'
+      case (eNewDamageType, eNewWeapon) of
+        (Right newDamageType, Right newWeaponName) -> do
+          let info = (entityInfo w) { name = newName }
+          let iInfo = ItemInfo { cost = newCost, weight = newWeight }
+          let newWeapon = WeaponEntity 
+                { entityInfo = info
+                , itemInfo = iInfo
+                , weaponDamage = (newDamage, newDamageType)
+                , weapon = newWeaponName
+                , properties = newWeaponProperties }
+          
+          saveEntity newId newWeapon
+        _ -> throwBaseError $ ParseError "Undefined damage or weapon type") $ KM.toList weapons
+  Left e -> throwError e
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
