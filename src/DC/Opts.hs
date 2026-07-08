@@ -5,8 +5,6 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- ItemOptions(..),
- WeaponOptions(..),
  ContainerOptions(..),
  MountOptions(..),
  SpellOptions(..),
@@ -19,7 +17,6 @@ module DC.Opts (
  CreateTrap(..),
  ItemAction(..),
  CreateItem(..),
- ArmorOptions(..),
  ArmorAction(..),
  CreateArmor(..),
  WeaponAction(..),
@@ -38,7 +35,10 @@ module DC.Opts (
  EntityOption(..),
  UpdateActor(..),
  UpdateObject(..),
- UpdateTrap(..)
+ UpdateTrap(..),
+ UpdateItem(..),
+ UpdateArmor(..),
+ UpdateWeapon(..)
 ) where
 
 import Options.Applicative
@@ -53,9 +53,9 @@ data Command
   | ActorCommand EntityOption
   | ObjectCommand EntityOption
   | TrapCommand EntityOption
-  | ItemCommand ItemOptions
-  | ArmorCommand ArmorOptions
-  | WeaponCommand WeaponOptions
+  | ItemCommand EntityOption
+  | ArmorCommand EntityOption
+  | WeaponCommand EntityOption
   | ContainerCommand ContainerOptions
   | MountCommand MountOptions
   | SpellCommand SpellOptions
@@ -99,7 +99,7 @@ data EntityOption
     , objectFilterAc :: Maybe Int
     , objectFilterMaxHp :: Maybe Int
     , objectFilterCurrentHp :: Maybe Int
-    , objectCommand :: Maybe ObjectAction
+    , entityCommand :: Maybe EntityAction
     }
   | TrapOptions
     { trapIds :: [String]
@@ -108,11 +108,29 @@ data EntityOption
     , trapFilterDetectDc :: Maybe Int
     , trapFilterAttackBonus :: Maybe Int
     , trapFilterSaveDc :: Maybe Int
-    , trapCommand :: Maybe TrapAction
+    , entityCommand :: Maybe EntityAction
     }
-  | ItemOpt ItemOptions
-  | ArmorOpt ArmorOptions
-  | WeaponOpt WeaponOptions
+  | ItemOptions
+    { itemIds :: [String]
+    , itemFilterCost :: Maybe String
+    , itemFilterWeight :: Maybe String
+    , entityCommand :: Maybe EntityAction
+    }
+  | ArmorOptions
+    { armorIds :: [String]
+    , armorFilterAc :: Maybe Int
+    , armorFilterStr :: Maybe Int
+    , armorFilterStealth :: Maybe Bool
+    , armorFilterType :: Maybe String
+    , entityCommand :: Maybe EntityAction
+    }
+  | WeaponOptions
+    { weaponIds :: [String]
+    , weaponFilterDamage :: Maybe String
+    , weaponFilterProperties :: Maybe String
+    , weaponFilterWeapon :: Maybe String
+    , weaponCommand :: Maybe EntityAction
+    }
   | ContainerOpt ContainerOptions
   | MountOpt MountOptions
   | SpellOpt SpellOptions
@@ -483,7 +501,9 @@ actorAction = ActorOptions
     (command "update" (info (helper <*> updateActor)
       (progDesc "Directly update values for a particular Actor"))
     <> command "create" (info (helper <*> createActor)
-      (progDesc "Directly create a new Actor by providing values"))))
+      (progDesc "Directly create a new Actor by providing values"))
+    <> command "delete" (info (helper <*> pure (ActorA ActorDelete))
+      (progDesc "Directly delete an Actor"))))
 
 data CreateActor = CreateActor
   { createActorId :: String
@@ -745,8 +765,8 @@ data CreateObject = CreateObject
   , createObjectY :: Int
   } deriving (Show, Eq)
 
-createObject :: Parser ObjectAction
-createObject = ObjectCreate <$> (CreateObject
+createObject :: Parser EntityAction
+createObject = ObjectA . ObjectCreate <$> (CreateObject
   <$> strOption
     ( long "id"
     <> metavar "ID"
@@ -787,8 +807,8 @@ data UpdateObject = UpdateObject
   , updateObjectY :: Maybe Int
   } deriving (Show, Eq)
 
-updateObject :: Parser ObjectAction
-updateObject = ObjectUpdate <$> (UpdateObject
+updateObject :: Parser EntityAction
+updateObject = ObjectA . ObjectUpdate <$> (UpdateObject
   <$> optional (strOption
     ( long "id"
     <> metavar "ID"
@@ -829,7 +849,7 @@ objectOptions = ObjectOptions
   <*> optional (option auto ( long "filter-current-hp" <> metavar "INTEGER" <> help "Filter Objects by current HP"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createObject) (progDesc "Create an Object"))
-    <> command "delete" (info (helper <*> pure ObjectDelete) (progDesc "Delete an Object"))
+    <> command "delete" (info (helper <*> pure (ObjectA ObjectDelete)) (progDesc "Delete an Object"))
     <> command "update" (info (helper <*> updateObject) (progDesc "Update an Object"))))
 
 -- Trap
@@ -850,8 +870,8 @@ data CreateTrap = CreateTrap
   , createTrapY :: Int
   } deriving (Show, Eq)
 
-createTrap :: Parser TrapAction
-createTrap = TrapCreate <$> (CreateTrap
+createTrap :: Parser EntityAction
+createTrap = TrapA . TrapCreate <$> (CreateTrap
   <$> strOption
     ( long "id" <> metavar "ID" <> help "ID of the new Trap")
   <*> strOption
@@ -881,8 +901,8 @@ data UpdateTrap = UpdateTrap
   , updateTrapX :: Maybe Int
   , updateTrapY :: Maybe Int
   } deriving (Show, Eq)
-updateTrap :: Parser TrapAction
-updateTrap = TrapUpdate <$> (UpdateTrap
+updateTrap :: Parser EntityAction
+updateTrap = TrapA . TrapUpdate <$> (UpdateTrap
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "The new ID of the trap"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (option auto ( long "detect-dc" <> metavar "INTEGER" <> help "New Detect DC"))
@@ -902,13 +922,13 @@ trapOptions = TrapOptions
   <*> optional (option auto ( long "filter-save-dc" <> metavar "INTEGER" <> help "Filter Traps by save DC"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createTrap) (progDesc "Create a Trap"))
-    <> command "delete" (info (helper <*> pure TrapDelete) (progDesc "Delete a Trap"))
+    <> command "delete" (info (helper <*> pure (TrapA TrapDelete)) (progDesc "Delete a Trap"))
     <> command "update" (info (helper <*> updateTrap) (progDesc "Update a Trap"))))
 
 -- Item
 data ItemAction
   = ItemCreate CreateItem
-  | ItemDelete DeleteItem
+  | ItemDelete
   | ItemUpdate UpdateItem
   deriving (Show, Eq)
 
@@ -919,21 +939,12 @@ data CreateItem = CreateItem
   , createItemWeight :: String
   } deriving (Show, Eq)
 
-createItem :: Parser ItemAction
-createItem = ItemCreate <$> (CreateItem
+createItem :: Parser EntityAction
+createItem = ItemA . ItemCreate <$> (CreateItem
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Item")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Item")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost of new Item")
   <*> strOption ( long "weight" <> metavar "WEIGHT" <> help "Weight of new Item"))
-
-data DeleteItem = DeleteItem { deleteItemId :: Maybe String } deriving (Show, Eq)
-
-deleteItem :: Parser ItemAction
-deleteItem = ItemDelete <$> (DeleteItem
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Item to delete")))
 
 data UpdateItem = UpdateItem
   { updateItemId :: Maybe String
@@ -942,34 +953,27 @@ data UpdateItem = UpdateItem
   , updateItemWeight :: Maybe String
   } deriving (Show, Eq)
 
-updateItem :: Parser ItemAction
-updateItem = ItemUpdate <$> (UpdateItem
+updateItem :: Parser EntityAction
+updateItem = ItemA . ItemUpdate <$> (UpdateItem
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Item to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight")))
 
-data ItemOptions = ItemOptions
-  { itemIds :: [String]
-  , itemFilterCost :: Maybe String
-  , itemFilterWeight :: Maybe String
-  , itemCommand :: Maybe ItemAction
-  } deriving (Show, Eq)
-
-itemOptions :: Parser ItemOptions
+itemOptions :: Parser EntityOption
 itemOptions = ItemOptions
   <$> many (strOption ( long "id" <> metavar "ITEM" <> help "The ID of an Item"))
   <*> optional (strOption ( long "filter-cost" <> metavar "COST" <> help "Filter Items by cost"))
   <*> optional (strOption ( long "filter-weight" <> metavar "WEIGHT" <> help "Filter Items by weight"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createItem) (progDesc "Create an Item"))
-    <> command "delete" (info (helper <*> deleteItem) (progDesc "Delete an Item"))
+    <> command "delete" (info (helper <*> pure (ItemA ItemDelete)) (progDesc "Delete an Item"))
     <> command "update" (info (helper <*> updateItem) (progDesc "Update an Item"))))
 
 -- Armor
 data ArmorAction
   = ArmorCreate CreateArmor
-  | ArmorDelete DeleteArmor
+  | ArmorDelete
   | ArmorUpdate UpdateArmor
   deriving (Show, Eq)
 
@@ -984,8 +988,8 @@ data CreateArmor = CreateArmor
   , createArmorType :: String
   } deriving (Show, Eq)
 
-createArmor :: Parser ArmorAction
-createArmor = ArmorCreate <$> (CreateArmor
+createArmor :: Parser EntityAction
+createArmor = ArmorA . ArmorCreate <$> (CreateArmor
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Armor")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Armor")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
@@ -994,15 +998,6 @@ createArmor = ArmorCreate <$> (CreateArmor
   <*> option auto ( long "str" <> metavar "INTEGER" <> help "Strength requirement")
   <*> switch ( long "stealth-disadvantage" <> help "Has stealth disadvantage")
   <*> strOption ( long "type" <> metavar "TYPE" <> help "Armor type"))
-
-data DeleteArmor = DeleteArmor { deleteArmorId :: Maybe String } deriving (Show, Eq)
-
-deleteArmor :: Parser ArmorAction
-deleteArmor = ArmorDelete <$> (DeleteArmor
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Armor to delete")))
 
 data UpdateArmor = UpdateArmor
   { updateArmorId :: Maybe String
@@ -1015,8 +1010,8 @@ data UpdateArmor = UpdateArmor
   , updateArmorType :: Maybe String
   } deriving (Show, Eq)
 
-updateArmor :: Parser ArmorAction
-updateArmor = ArmorUpdate <$> (UpdateArmor
+updateArmor :: Parser EntityAction
+updateArmor = ArmorA . ArmorUpdate <$> (UpdateArmor
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Armor to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
@@ -1026,16 +1021,7 @@ updateArmor = ArmorUpdate <$> (UpdateArmor
   <*> optional (option auto ( long "stealth-disadvantage" <> metavar "BOOL" <> help "New stealth disadvantage flag"))
   <*> optional (strOption ( long "type" <> metavar "TYPE" <> help "New armor type")))
 
-data ArmorOptions = ArmorOptions
-  { armorIds :: [String]
-  , armorFilterAc :: Maybe Int
-  , armorFilterStr :: Maybe Int
-  , armorFilterStealth :: Maybe Bool
-  , armorFilterType :: Maybe String
-  , armorCommand :: Maybe ArmorAction
-  } deriving (Show, Eq)
-
-armorOptions :: Parser ArmorOptions
+armorOptions :: Parser EntityOption
 armorOptions = ArmorOptions
   <$> many (strOption ( long "id" <> metavar "ARMOR" <> help "The ID of an Armor"))
   <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Armor by AC"))
@@ -1044,13 +1030,13 @@ armorOptions = ArmorOptions
   <*> optional (strOption ( long "filter-type" <> metavar "TYPE" <> help "Filter Armor by type"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createArmor) (progDesc "Create Armor"))
-    <> command "delete" (info (helper <*> deleteArmor) (progDesc "Delete Armor"))
+    <> command "delete" (info (helper <*> pure (ArmorA ArmorDelete)) (progDesc "Delete Armor"))
     <> command "update" (info (helper <*> updateArmor) (progDesc "Update Armor"))))
 
 -- Weapon
 data WeaponAction
   = WeaponCreate CreateWeapon
-  | WeaponDelete DeleteWeapon
+  | WeaponDelete
   | WeaponUpdate UpdateWeapon
   deriving (Show, Eq)
 
@@ -1109,8 +1095,8 @@ propertyParser = Ammunition <$ P.string "ammunition"
     <*> P.char ')'
     <*> optional P.space)
 
-createWeapon :: Parser WeaponAction
-createWeapon = WeaponCreate <$> (CreateWeapon
+createWeapon :: Parser EntityAction
+createWeapon = WeaponA . WeaponCreate <$> (CreateWeapon
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Weapon")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Weapon")
   <*> strOption ( long "cost" <> metavar "COST" <> help "Cost")
@@ -1136,44 +1122,45 @@ createWeapon = WeaponCreate <$> (CreateWeapon
     <> metavar "WEAPON" 
     <> help "Weapon identifier from D&D 5e weapon table, all lowercase")))
 
-data DeleteWeapon = DeleteWeapon { deleteWeaponId :: Maybe String } deriving (Show, Eq)
-
-deleteWeapon :: Parser WeaponAction
-deleteWeapon = WeaponDelete <$> (DeleteWeapon
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Weapon to delete")))
-
 data UpdateWeapon = UpdateWeapon
   { updateWeaponId :: Maybe String
   , updateWeaponName :: Maybe String
   , updateWeaponCost :: Maybe String
   , updateWeaponWeight :: Maybe String
   , updateWeaponDamage :: Maybe String
-  , updateWeaponProperties :: Maybe String
-  , updateWeaponWeapon :: Maybe String
+  , updateWeaponDamageType :: Maybe (Either AppError DamageType)
+  , updateWeaponProperties :: [Either AppError WeaponProperty]
+  , updateWeaponWeapon :: Maybe (Either AppError Weapon)
   } deriving (Show, Eq)
 
-updateWeapon :: Parser WeaponAction
-updateWeapon = WeaponUpdate <$> (UpdateWeapon
-  <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Weapon to update"))
+updateWeapon :: Parser EntityAction
+updateWeapon = WeaponA . WeaponUpdate <$> (UpdateWeapon
+  <$> optional (strOption ( long "id" <> metavar "ID" <> help "New ID of the weapon"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "cost" <> metavar "COST" <> help "New cost"))
   <*> optional (strOption ( long "weight" <> metavar "WEIGHT" <> help "New weight"))
-  <*> optional (strOption ( long "damage" <> metavar "DICE" <> help "New damage"))
-  <*> optional (strOption ( long "properties" <> metavar "PROPS" <> help "New properties"))
-  <*> optional (strOption ( long "weapon" <> metavar "WEAPON" <> help "New weapon identifier")))
+  <*> optional (strOption ( long "damage" <> metavar "DICE" <> help "New damage (Dice expression)"))
+  <*> optional (convertDamageType <$> strOption
+    ( long "damage-type"
+    <> long "dt"
+    <> metavar "DAMAGE-TYPE"
+    <> help "A damage type from the D&D 5e basic rules damage type table, all lowercase"))
+  <*> many ((\s -> case P.runParser propertyParser s of
+    Right (r, "") -> Right r
+    _ -> Left $ newBaseError $ ParseError "Expected a weapon property string") <$> strOption
+    (long "weapon-property"
+    <> long "wp"
+    <> metavar "WEAPON-PROPERTY"
+    <> help "A weapon property from the D&d 5e weapon property table. Can use multiple of this option"))
+  <*> optional ((\s -> case convertWeaponProficiency s of
+    Right (Specific w) -> Right w
+    _ -> Left $ newBaseError $ ParseError "Expected weapon string") <$> strOption 
+    ( long "weapon" 
+    <> short 'w'
+    <> metavar "WEAPON" 
+    <> help "Weapon identifier from D&D 5e weapon table, all lowercase")))
 
-data WeaponOptions = WeaponOptions
-  { weaponIds :: [String]
-  , weaponFilterDamage :: Maybe String
-  , weaponFilterProperties :: Maybe String
-  , weaponFilterWeapon :: Maybe String
-  , weaponCommand :: Maybe WeaponAction
-  } deriving (Show, Eq)
-
-weaponOptions :: Parser WeaponOptions
+weaponOptions :: Parser EntityOption
 weaponOptions = WeaponOptions
   <$> many (strOption ( long "id" <> metavar "WEAPON" <> help "The ID of a Weapon"))
   <*> optional (strOption ( long "filter-damage" <> metavar "DICE" <> help "Filter Weapons by damage"))
@@ -1181,7 +1168,7 @@ weaponOptions = WeaponOptions
   <*> optional (strOption ( long "filter-weapon" <> metavar "WEAPON" <> help "Filter Weapons by weapon identifier"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createWeapon) (progDesc "Create Weapon"))
-    <> command "delete" (info (helper <*> deleteWeapon) (progDesc "Delete Weapon"))
+    <> command "delete" (info (helper <*> pure (WeaponA WeaponDelete)) (progDesc "Delete Weapon"))
     <> command "update" (info (helper <*> updateWeapon) (progDesc "Update Weapon"))))
 
 -- Container

@@ -1,3 +1,5 @@
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE InstanceSigs #-}
 module DC.Error (
   ErrorDetail(..),
   ErrorContextFrame(..),

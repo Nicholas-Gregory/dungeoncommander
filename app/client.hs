@@ -23,7 +23,7 @@ import Control.Monad.Trans (MonadIO(liftIO), MonadTrans (lift))
 import DC.Actions
 import Data.Traversable (traverse)
 import DC.Types 
-import DC.Error (AppM, AppError (AppError), throwBaseError, ErrorDetail (OtherError, ParseError))
+import DC.Error (AppM, AppError (AppError, errorDetail), throwBaseError, ErrorDetail (OtherError, ParseError))
 import Options.Applicative ( execParser )
 import DC.Opts
 import Data.Foldable (traverse_)
@@ -37,6 +37,7 @@ import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
+import Control.Concurrent (writeList2Chan)
 
 processCommand :: KM.KeyMap Entity -> EntityAction -> AppM Env ()
 processCommand _ (SceneA (SceneCreate (CreateScene id sName x y))) = do
@@ -227,6 +228,95 @@ processCommand traps (TrapA (TrapUpdate (UpdateTrap nid n ddc ab sdc d x y))) = 
       deleteEntity id
       removeEntityFromOutputEntities id) $ KM.toList traps
 processCommand traps (TrapA TrapDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList traps
+processCommand _ (ItemA (ItemCreate (CreateItem id n c w))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let iInfo = ItemInfo { cost = c, weight = w }
+  let newItem = Item { entityInfo = info, itemInfo = iInfo }
+
+  saveEntity id newItem
+  addEntityToOutputEntities id newItem
+processCommand items (ItemA (ItemUpdate (UpdateItem nid n c w))) = do
+  when (KM.size items > 1 && isJust nid)
+    $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+  
+  traverse_ (\(k, i) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo i) n
+    let newCost = fromMaybe (cost $ itemInfo i) c
+    let newWeight = fromMaybe (weight $ itemInfo i) w
+    let newInfo = (entityInfo i) { name = newName }
+    let newItemInfo = ItemInfo { cost = newCost, weight = newWeight }
+    let newItem = Item { entityInfo = newInfo, itemInfo = newItemInfo }
+    
+    saveEntity newId newItem
+    addEntityToOutputEntities newId newItem
+    
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList items
+processCommand items (ItemA ItemDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList items
+processCommand _ (ArmorA (ArmorCreate (CreateArmor id n c w ac str sd t))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let iInfo = ItemInfo { cost = c, weight = w }
+  let newArmor = Armor
+        { entityInfo = info
+        , itemInfo = iInfo
+        , ac = ac
+        , str = str
+        , stealthDisadvantage = sd
+        , armorType = t}
+  
+  saveEntity id newArmor
+  addEntityToOutputEntities id newArmor
+processCommand armor (ArmorA (ArmorUpdate (UpdateArmor nid n c w nac nstr sd t))) = do
+  when (KM.size armor > 1 && isJust nid) 
+    $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+  traverse_ (\(k, a) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo a) n
+    let newCost = fromMaybe (cost $ itemInfo a) c
+    let newWeight = fromMaybe (weight $ itemInfo a) w
+    let newAc = fromMaybe (ac a) nac
+    let newStr = fromMaybe (str a) nstr
+    let newStealthDisadvantage = fromMaybe (stealthDisadvantage a) sd
+    let newType = fromMaybe (armorType a) t
+    let newInfo = (entityInfo a) { name = newName }
+    let newItemInfo = ItemInfo { cost = newCost, weight = newWeight }
+    let newArmor = Armor
+          { entityInfo = newInfo
+          , itemInfo = newItemInfo
+          , ac = newAc
+          , str = newStr
+          , stealthDisadvantage = newStealthDisadvantage
+          , armorType = newType}
+    
+    saveEntity newId newArmor
+    addEntityToOutputEntities newId newArmor
+    
+    when (id /= newId) $ do
+          deleteEntity id
+          removeEntityFromOutputEntities id
+    ) $ KM.toList armor
+processCommand armor (ArmorA ArmorDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList armor
+processCommand _ (WeaponA (WeaponCreate (CreateWeapon id n c w d dt wp wn))) = do
+  case (dt, sequenceA wp, wn) of
+    (Right dt', Right wp', Right wn') -> do
+      let info = EntityInfo { name = n, children = EntityChildren [] }
+      let iInfo = ItemInfo { cost = c, weight = w }
+      let newWeapon = Weapon
+            { entityInfo = info
+            , itemInfo = iInfo
+            , weaponDamage = (d, dt')
+            , properties = WeaponProperties wp'
+            , weapon = wn'}
+
+      saveEntity id newWeapon
+      addEntityToOutputEntities id newWeapon
+    _ -> throwBaseError $ OtherError "Unexpected weapon type, weapon properties, or damage type"
+processCommand weapons (WeaponA (WeaponUpdate (UpdateWeapon nid n c w d dt wp wn))) = undefined
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -251,21 +341,27 @@ runApp opts sock = do
                 (TrapCommand {}) -> KM.filter (\case
                   Trap {} -> True
                   _ -> False)
+                (ItemCommand {}) -> KM.filter (\case
+                  Item {} -> True
+                  _ -> False)
               opt = case rootCommand of
                 (SceneCommand opt) -> opt
                 (ActorCommand opt) -> opt
                 (ObjectCommand opt) -> opt
                 (TrapCommand opt) -> opt
+                (ItemCommand opt) -> opt
               filteringCondition = case opt of
                 (SceneOptions ids filterX filterY _) -> not (null ids) || isJust (filterX <|> filterY)
                 (ActorOptions ids filterX filterY filterCHp filterMHp filterCha filterInt filterCon filterStr filterDex filterWis filterHd filterAc filterLevel _) -> not (null ids) || isJust (filterX <|> filterY <|> filterCHp)
                 (ObjectOptions ids filterX filterY filterAc filterMhp filterChp _) -> not (null ids) || isJust (filterX <|> filterY <|> filterAc <|> filterMhp <|> filterChp)
                 (TrapOptions ids filterX filterY filterDdc filterAb filterSdc _) -> not (null ids) || isJust (filterX <|> filterY <|> filterDdc <|> filterAb <|> filterSdc)
+                (ItemOptions ids filterCost filterWeight _) -> not (null ids) || isJust (filterCost <|> filterWeight)
               ids = case opt of
                 (SceneOptions ids _ _ _) -> ids
                 (ActorOptions { actorIds = ids }) -> ids
                 (ObjectOptions { objectIds = ids }) -> ids
                 (TrapOptions { trapIds = ids }) -> ids
+                (ItemOptions { itemIds = ids }) -> ids
               filters = case opt of
                 (SceneOptions _ filterX filterY _) ->
                   [ \s -> maybe True (\fx -> fx == fst (dimensions s)) filterX
@@ -296,6 +392,9 @@ runApp opts sock = do
                   , \t -> maybe True (\fddc -> fddc == detectDc t) filterDdc
                   , \t -> maybe True (\fab -> fab == attackBonus t) filterAb
                   , \t -> maybe True (\fsdc -> fsdc == saveDc t) filterSdc]
+                (ItemOptions _ filterCost filterWeight _) ->
+                  [ \i -> maybe True (\fc -> fc == cost (itemInfo i)) filterCost
+                  , \i -> maybe True (\fw -> fw == weight (itemInfo i)) filterWeight]
           in if filteringCondition
             then do
               -- CLI entity selection, filtering by command options
