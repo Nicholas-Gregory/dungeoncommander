@@ -5,12 +5,12 @@
 module DC.Actions (
   getAbilityScore,
   getAbilityModifier,
-  abilityCheck,
+  -- abilityCheck,
   hasSaveProficiency,
   getProficiencyBonus,
-  savingThrow,
+  -- savingThrow,
   hasWeaponProficiency,
-  attackRoll,
+  -- attackRoll,
   saveEntity,
   addChild,
   removeChild,
@@ -23,7 +23,7 @@ module DC.Actions (
   setCurrentScene,
   getEntityById,
   printScene,
-  diceRollResult,
+  -- diceRollResult,
   getEntities,
   saveJsonToDaemon,
   refreshSocketConn,
@@ -59,7 +59,6 @@ module DC.Actions (
 ) where
 import DC.Types
 import qualified DC.Types (Entity(..), EntityInfo(..), EntityChildType(..), EntityChildren(..), EntityChild(..), SaveProficiencies(..), WeaponProficiencies(..), Ability(..), CheckSuccess, WeaponProficiency (Simple, Martial, Specific), Weapon (SimpleMelee, SimpleRanged, MartialMelee, MartialRanged))
-import DC.Dice (rollDice, processExpression)
 import System.Random (StdGen, getStdGen)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (atomicModifyIORef', readIORef)
@@ -103,9 +102,9 @@ getAbilityScore e a = Left
 getAbilityModifier :: Entity -> Ability -> Either AppError Int
 getAbilityModifier e a = (\s -> (s - 10) `div` 2) <$> getAbilityScore e a
 
-abilityCheck :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
-abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc)
-  <$> getAbilityModifier entity ability
+-- abilityCheck :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
+-- abilityCheck gen entity ability dc = (\m -> (m + rollDice gen 1 20) >= dc)
+--   <$> getAbilityModifier entity ability
 
 hasSaveProficiency :: Entity -> Ability -> Either AppError Bool
 hasSaveProficiency (Actor { saveProficiencies = SaveProficiencies xs }) ability = Right
@@ -127,16 +126,16 @@ getProficiencyBonus x = Left
   <> show x
 
 
-savingThrow :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
-savingThrow gen entity ability dc = do
-  pro <- hasSaveProficiency entity ability
-  abilityModifier <- getAbilityModifier entity ability
-  proficiencyBonus <- getProficiencyBonus entity
-  let roll = rollDice gen 1 20
+-- savingThrow :: StdGen -> Entity -> Ability -> Int -> Either AppError CheckSuccess
+-- savingThrow gen entity ability dc = do
+--   pro <- hasSaveProficiency entity ability
+--   abilityModifier <- getAbilityModifier entity ability
+--   proficiencyBonus <- getProficiencyBonus entity
+--   let roll = rollDice gen 1 20
 
-  return $ if pro
-    then roll + abilityModifier + proficiencyBonus >= dc
-    else roll + abilityModifier >= dc
+  -- return $ if pro
+  --   then roll + abilityModifier + proficiencyBonus >= dc
+  --   else roll + abilityModifier >= dc
 
 hasWeaponProficiency :: Entity -> WeaponProficiency -> Either AppError Bool
 hasWeaponProficiency (Actor { weaponProficiencies = WeaponProficiencies xs }) proficiency = Right
@@ -149,28 +148,28 @@ hasWeaponProficiency e x = Left
   <> "Object: "
   <> show x
 
-attackRoll :: StdGen -> Entity -> Entity -> Ability -> Int -> Either AppError CheckSuccess
-attackRoll gen (WeaponEntity { weapon }) entity ability dc = do
-  abilityModifier <- getAbilityModifier entity ability
-  proficiencyBonus <- getProficiencyBonus entity
-  hasProficiency <- (case weapon of
-        SimpleMelee w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleMelee w))
-        SimpleRanged w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleRanged w))
-        MartialMelee w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialMelee w))
-        MartialRanged w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialRanged w)))
-  let roll = rollDice gen 1 20
+-- attackRoll :: StdGen -> Entity -> Entity -> Ability -> Int -> Either AppError CheckSuccess
+-- attackRoll gen (WeaponEntity { weapon }) entity ability dc = do
+--   abilityModifier <- getAbilityModifier entity ability
+--   proficiencyBonus <- getProficiencyBonus entity
+--   hasProficiency <- (case weapon of
+--         SimpleMelee w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleMelee w))
+--         SimpleRanged w -> liftA2 (||) (hasWeaponProficiency entity Simple) (hasWeaponProficiency entity (Specific $ SimpleRanged w))
+--         MartialMelee w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialMelee w))
+--         MartialRanged w -> liftA2 (||) (hasWeaponProficiency entity Martial) (hasWeaponProficiency entity (Specific $ MartialRanged w)))
+--   let roll = rollDice gen 1 20
 
-  return $ case roll of
-    1 -> False
-    20 -> True
-    _ -> if hasProficiency
-    then roll + abilityModifier + proficiencyBonus >= dc
-    else roll + abilityModifier >= dc
-attackRoll _ e _ _ _ = Left
-  $ newBaseError
-  $ OtherError
-  $ "Expected Weapon for attackRoll, found: "
-  <> show e
+  -- return $ case roll of
+  --   1 -> False
+  --   20 -> True
+  --   _ -> if hasProficiency
+  --   then roll + abilityModifier + proficiencyBonus >= dc
+--   --   else roll + abilityModifier >= dc
+-- attackRoll _ e _ _ _ = Left
+--   $ newBaseError
+--   $ OtherError
+--   $ "Expected Weapon for attackRoll, found: "
+--   <> show e
 
 saveEntity :: String -> Entity -> AppM Env ()
 saveEntity k e = err "updateEntity" [("entity_id", show k), ("update_payload", show e)] $ do
@@ -473,16 +472,16 @@ printActor v eid = err "printActor"
       Stats -> liftIO $ hPutStrLn stderr vStatsString
       All -> liftIO $ hPutStrLn stderr vAllString
 
-diceRollResult :: String -> AppM Env ()
-diceRollResult expression = err "diceRollResult" [ ("expression", show expression ) ] $ do
-  gen <- asks gen
+-- diceRollResult :: String -> AppM Env ()
+-- diceRollResult expression = err "diceRollResult" [ ("expression", show expression ) ] $ do
+--   gen <- asks gen
 
-  --TODO: stdout roll result action to pipe to next command in chain
-  case processExpression gen expression of
-    Left e -> throwError e
-    Right r -> liftIO $ hPutStrLn stderr
-      $ "[ROLL] dice-expression: " <> expression
-      <> ". Result: " <> show r
+--   --TODO: stdout roll result action to pipe to next command in chain
+--   case processExpression gen expression of
+--     Left e -> throwError e
+--     Right r -> liftIO $ hPutStrLn stderr
+--       $ "[ROLL] dice-expression: " <> expression
+--       <> ". Result: " <> show r
 
 printObject :: VerbosityLevel -> String -> AppM Env ()
 printObject v eid = err "printObject"

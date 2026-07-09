@@ -60,13 +60,13 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  
-        DC.Dice
         DC.Opts
         DC.Actions
         DC.Parse
         DC.Types
         DC.Error
         DC.DActions
+        DC.Parsers
     -- Modules included in this library but not exported.
     
 

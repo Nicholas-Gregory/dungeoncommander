@@ -5,9 +5,6 @@ module DC.Opts (
  CreateScene(..),
  RollOptions(..),
  RootOptions(..),
- MountOptions(..),
- SpellOptions(..),
- MoneyOptions(..),
  ActorAction(..),
  CreateActor(..),
  ObjectAction(..),
@@ -38,14 +35,17 @@ module DC.Opts (
  UpdateItem(..),
  UpdateArmor(..),
  UpdateWeapon(..),
- UpdateContainer(..)
+ UpdateContainer(..),
+ UpdateMount(..),
+ UpdateSpell(..),
+ UpdateMoney(..)
 ) where
 
 import Options.Applicative
 import DC.Types
 import DC.Error (AppError(AppError), throwBaseError, ErrorDetail (ParseError), newBaseError)
 import qualified Data.Aeson as JSON
-import qualified DC.Parse as P
+import qualified DC.Parsers as P
 
 data Command
   = RollCommand RollOptions
@@ -57,9 +57,9 @@ data Command
   | ArmorCommand EntityOption
   | WeaponCommand EntityOption
   | ContainerCommand EntityOption
-  | MountCommand MountOptions
-  | SpellCommand SpellOptions
-  | MoneyCommand MoneyOptions
+  | MountCommand EntityOption
+  | SpellCommand EntityOption
+  | MoneyCommand EntityOption
   | ChaCommand AbilityCheck
   | IntCommand AbilityCheck
   | ConCommand AbilityCheck
@@ -118,6 +118,8 @@ data EntityOption
     }
   | ArmorOptions
     { armorIds :: [String]
+    , armorFilterCost :: Maybe String
+    , armorFilterWeight :: Maybe String
     , armorFilterAc :: Maybe Int
     , armorFilterStr :: Maybe Int
     , armorFilterStealth :: Maybe Bool
@@ -136,9 +138,23 @@ data EntityOption
     , containerFilterCapacity :: Maybe String
     , entityCommand :: Maybe EntityAction
     }
-  | MountOpt MountOptions
-  | SpellOpt SpellOptions
-  | MoneyOpt MoneyOptions
+  | MountOptions
+    { mountIds :: [String]
+    , mountFilterSpeed :: Maybe Int
+    , mountFilterCarrying :: Maybe Int
+    , entityCommand :: Maybe EntityAction
+    }
+  | SpellOptions
+    { spellIds :: [String]
+    , spellFilterLevel :: Maybe Int
+    , spellFilterRitual :: Maybe Bool
+    , entityCommand :: Maybe EntityAction
+    }
+  | MoneyOptions 
+    { moneyIds :: [String]
+    , moneyFilterAmount :: Maybe String
+    , entityCommand :: Maybe EntityAction
+    }
   deriving (Show, Eq)
 
 data EntityAction
@@ -1028,6 +1044,8 @@ updateArmor = ArmorA . ArmorUpdate <$> (UpdateArmor
 armorOptions :: Parser EntityOption
 armorOptions = ArmorOptions
   <$> many (strOption ( long "id" <> metavar "ARMOR" <> help "The ID of an Armor"))
+  <*> optional (strOption ( long "filter-cost" <> metavar "COST" <> help "The cost string of the armor"))
+  <*> optional (strOption ( long "filter-weight" <> metavar "WEIGHT" <> help "The weight string of the armor"))
   <*> optional (option auto ( long "filter-ac" <> metavar "INTEGER" <> help "Filter Armor by AC"))
   <*> optional (option auto ( long "filter-str" <> metavar "INTEGER" <> help "Filter Armor by Strength"))
   <*> optional (option auto ( long "filter-stealth-disadvantage" <> metavar "BOOL" <> help "Filter Armor by stealth disadvantage"))
@@ -1071,34 +1089,6 @@ convertDamageType "slashing" = Right Slashing
 convertDamageType "thunder" = Right Thunder
 convertDamageType _ = Left $ newBaseError $ ParseError "Expected a damage type string"
 
-propertyParser :: P.Parser WeaponProperty
-propertyParser = Ammunition <$ P.string "ammunition"
-  <|> (Finesse <$ P.string "finesse")
-  <|> (Heavy <$ P.string "heavy")
-  <|> (Light <$ P.string "light")
-  <|> (Loading <$ P.string "loading")
-  <|> ((\_ _ _ n _ _ l _ _ -> Range (n, l))
-    <$> P.string "range" 
-    <*> P.space 
-    <*> P.char '('
-    <*> P.number
-    <*> P.char ','
-    <*> optional P.space
-    <*> P.number
-    <*> P.char ')'
-    <*> optional P.space)
-  <|> (Reach <$ P.string "reach")
-  <|> (Special <$ P.string "special")
-  <|> (Thrown <$ P.string "thrown")
-  <|> (TwoHanded <$ P.string "two-handed")
-  <|> ((\_ _ _ d _ _ -> Versatile d)
-    <$> P.string "versatile"
-    <*> P.space
-    <*> P.char '('
-    <*> P.number
-    <*> P.char ')'
-    <*> optional P.space)
-
 createWeapon :: Parser EntityAction
 createWeapon = WeaponA . WeaponCreate <$> (CreateWeapon
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Weapon")
@@ -1111,7 +1101,7 @@ createWeapon = WeaponA . WeaponCreate <$> (CreateWeapon
     <> long "dt"
     <> metavar "DAMAGE-TYPE"
     <> help "A damage type from the D&D 5e basic rules damage type table, all lowercase"))
-  <*> many ((\s -> case P.runParser propertyParser s of
+  <*> many ((\s -> case P.runParser P.weaponProperty s of
     Right (r, "") -> Right r
     _ -> Left $ newBaseError $ ParseError "Expected a weapon property string") <$> strOption
     (long "weapon-property"
@@ -1149,7 +1139,7 @@ updateWeapon = WeaponA . WeaponUpdate <$> (UpdateWeapon
     <> long "dt"
     <> metavar "DAMAGE-TYPE"
     <> help "A damage type from the D&D 5e basic rules damage type table, all lowercase"))
-  <*> many ((\s -> case P.runParser propertyParser s of
+  <*> many ((\s -> case P.runParser P.weaponProperty s of
     Right (r, "") -> Right r
     _ -> Left $ newBaseError $ ParseError "Expected a weapon property string") <$> strOption
     (long "weapon-property"
@@ -1227,7 +1217,7 @@ containerOptions = ContainerOptions
 -- Mount
 data MountAction
   = MountCreate CreateMount
-  | MountDelete DeleteMount
+  | MountDelete
   | MountUpdate UpdateMount
   deriving (Show, Eq)
 
@@ -1238,21 +1228,12 @@ data CreateMount = CreateMount
   , createMountCarrying :: Int
   } deriving (Show, Eq)
 
-createMount :: Parser MountAction
-createMount = MountCreate <$> (CreateMount
+createMount :: Parser EntityAction
+createMount = MountA . MountCreate <$> (CreateMount
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Mount")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Mount")
   <*> option auto ( long "speed" <> metavar "INTEGER" <> help "Speed of Mount")
   <*> option auto ( long "carrying" <> metavar "INTEGER" <> help "Carrying capacity"))
-
-data DeleteMount = DeleteMount { deleteMountId :: Maybe String } deriving (Show, Eq)
-
-deleteMount :: Parser MountAction
-deleteMount = MountDelete <$> (DeleteMount
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Mount to delete")))
 
 data UpdateMount = UpdateMount
   { updateMountId :: Maybe String
@@ -1261,34 +1242,27 @@ data UpdateMount = UpdateMount
   , updateMountCarrying :: Maybe Int
   } deriving (Show, Eq)
 
-updateMount :: Parser MountAction
-updateMount = MountUpdate <$> (UpdateMount
+updateMount :: Parser EntityAction
+updateMount = MountA . MountUpdate <$> (UpdateMount
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Mount to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (option auto ( long "speed" <> metavar "INTEGER" <> help "New speed"))
   <*> optional (option auto ( long "carrying" <> metavar "INTEGER" <> help "New carrying capacity")))
 
-data MountOptions = MountOptions
-  { mountIds :: [String]
-  , mountFilterSpeed :: Maybe Int
-  , mountFilterCarrying :: Maybe Int
-  , mountCommand :: Maybe MountAction
-  } deriving (Show, Eq)
-
-mountOptions :: Parser MountOptions
+mountOptions :: Parser EntityOption
 mountOptions = MountOptions
   <$> many (strOption ( long "id" <> metavar "MOUNT" <> help "The ID of a Mount"))
   <*> optional (option auto ( long "filter-speed" <> metavar "INTEGER" <> help "Filter Mounts by speed"))
   <*> optional (option auto ( long "filter-carrying" <> metavar "INTEGER" <> help "Filter Mounts by carrying capacity"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createMount) (progDesc "Create Mount"))
-    <> command "delete" (info (helper <*> deleteMount) (progDesc "Delete Mount"))
+    <> command "delete" (info (helper <*> pure (MountA MountDelete)) (progDesc "Delete Mount"))
     <> command "update" (info (helper <*> updateMount) (progDesc "Update Mount"))))
 
 -- Spell
 data SpellAction
   = SpellCreate CreateSpell
-  | SpellDelete DeleteSpell
+  | SpellDelete
   | SpellUpdate UpdateSpell
   deriving (Show, Eq)
 
@@ -1307,8 +1281,8 @@ data CreateSpell = CreateSpell
   , createSpellAttack :: String
   } deriving (Show, Eq)
 
-createSpell :: Parser SpellAction
-createSpell = SpellCreate <$> (CreateSpell
+createSpell :: Parser EntityAction
+createSpell = SpellA . SpellCreate <$> (CreateSpell
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Spell")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of new Spell")
   <*> option auto ( long "level" <> metavar "INTEGER" <> help "Spell level")
@@ -1321,15 +1295,6 @@ createSpell = SpellCreate <$> (CreateSpell
   <*> strOption ( long "aoe" <> metavar "AOE" <> help "Area of effect")
   <*> strOption ( long "save" <> metavar "SAVE" <> help "Save type")
   <*> strOption ( long "attack" <> metavar "ATTACK" <> help "Attack type"))
-
-data DeleteSpell = DeleteSpell { deleteSpellId :: Maybe String } deriving (Show, Eq)
-
-deleteSpell :: Parser SpellAction
-deleteSpell = SpellDelete <$> (DeleteSpell
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Spell to delete")))
 
 data UpdateSpell = UpdateSpell
   { updateSpellId :: Maybe String
@@ -1346,8 +1311,8 @@ data UpdateSpell = UpdateSpell
   , updateSpellAttack :: Maybe String
   } deriving (Show, Eq)
 
-updateSpell :: Parser SpellAction
-updateSpell = SpellUpdate <$> (UpdateSpell
+updateSpell :: Parser EntityAction
+updateSpell = SpellA . SpellUpdate <$> (UpdateSpell
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Spell to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (option auto ( long "level" <> metavar "INTEGER" <> help "New level"))
@@ -1361,27 +1326,20 @@ updateSpell = SpellUpdate <$> (UpdateSpell
   <*> optional (strOption ( long "save" <> metavar "SAVE" <> help "New save"))
   <*> optional (strOption ( long "attack" <> metavar "ATTACK" <> help "New attack")))
 
-data SpellOptions = SpellOptions
-  { spellIds :: [String]
-  , spellFilterLevel :: Maybe Int
-  , spellFilterRitual :: Maybe Bool
-  , spellCommand :: Maybe SpellAction
-  } deriving (Show, Eq)
-
-spellOptions :: Parser SpellOptions
+spellOptions :: Parser EntityOption
 spellOptions = SpellOptions
   <$> many (strOption ( long "id" <> metavar "SPELL" <> help "The ID of a Spell"))
   <*> optional (option auto ( long "filter-level" <> metavar "INTEGER" <> help "Filter Spells by level"))
   <*> optional (option auto ( long "filter-ritual" <> metavar "BOOL" <> help "Filter Spells by ritual flag"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createSpell) (progDesc "Create Spell"))
-    <> command "delete" (info (helper <*> deleteSpell) (progDesc "Delete Spell"))
+    <> command "delete" (info (helper <*> pure (SpellA SpellDelete)) (progDesc "Delete Spell"))
     <> command "update" (info (helper <*> updateSpell) (progDesc "Update Spell"))))
 
 -- Money
 data MoneyAction
   = MoneyCreate CreateMoney
-  | MoneyDelete DeleteMoney
+  | MoneyDelete
   | MoneyUpdate UpdateMoney
   deriving (Show, Eq)
 
@@ -1391,20 +1349,11 @@ data CreateMoney = CreateMoney
   , createMoneyAmount :: String
   } deriving (Show, Eq)
 
-createMoney :: Parser MoneyAction
-createMoney = MoneyCreate <$> (CreateMoney
+createMoney :: Parser EntityAction
+createMoney = MoneyA . MoneyCreate <$> (CreateMoney
   <$> strOption ( long "id" <> metavar "ID" <> help "ID of new Money entity")
   <*> strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "Name of money entity")
   <*> strOption ( long "amount" <> metavar "AMOUNT" <> help "Amount string"))
-
-data DeleteMoney = DeleteMoney { deleteMoneyId :: Maybe String } deriving (Show, Eq)
-
-deleteMoney :: Parser MoneyAction
-deleteMoney = MoneyDelete <$> (DeleteMoney
-  <$> optional (strOption
-    ( long "id"
-    <> metavar "ID"
-    <> help "ID of Money to delete")))
 
 data UpdateMoney = UpdateMoney
   { updateMoneyId :: Maybe String
@@ -1412,23 +1361,17 @@ data UpdateMoney = UpdateMoney
   , updateMoneyAmount :: Maybe String
   } deriving (Show, Eq)
 
-updateMoney :: Parser MoneyAction
-updateMoney = MoneyUpdate <$> (UpdateMoney
+updateMoney :: Parser EntityAction
+updateMoney = MoneyA . MoneyUpdate <$> (UpdateMoney
   <$> optional (strOption ( long "id" <> metavar "ID" <> help "ID of Money to update"))
   <*> optional (strOption ( long "name" <> short 'n' <> metavar "NAME" <> help "New name"))
   <*> optional (strOption ( long "amount" <> metavar "AMOUNT" <> help "New amount")))
 
-data MoneyOptions = MoneyOptions
-  {moneyIds :: [String]
-  , moneyFilterAmount :: Maybe String
-  , moneyCommand :: Maybe MoneyAction
-  } deriving (Show, Eq)
-
-moneyOptions :: Parser MoneyOptions
+moneyOptions :: Parser EntityOption
 moneyOptions = MoneyOptions
   <$> many (strOption ( long "id" <> metavar "MONEY" <> help "The ID of a Money entity"))
   <*> optional (strOption ( long "filter-amount" <> metavar "AMOUNT" <> help "Filter Money by amount string"))
   <*> optional (hsubparser
     ( command "create" (info (helper <*> createMoney) (progDesc "Create Money"))
-    <> command "delete" (info (helper <*> deleteMoney) (progDesc "Delete Money"))
+    <> command "delete" (info (helper <*> pure (MoneyA MoneyDelete)) (progDesc "Delete Money"))
     <> command "update" (info (helper <*> updateMoney) (progDesc "Update Money"))))

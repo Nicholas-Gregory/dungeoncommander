@@ -29,7 +29,19 @@ module DC.Types (
   DaemonM,
   Output(..),
   ItemInfo(..),
-  DamageType(..)
+  DamageType(..),
+  Cost(..),
+  Weight(..),
+  LightArmor(..),
+  MediumArmor(..),
+  HeavyArmor(..),
+  ArmorType(..),
+  DiceRoll(..),
+  DiceReroll(..),
+  DiceKeep(..),
+  DiceDrop(..),
+  DiceExplosion,
+  DiceExpression
 ) where
 import Data.List (find)
 import qualified Data.Map as M
@@ -88,6 +100,62 @@ data VerbosityLevel
   deriving (Show, Eq)
 
 type CheckSuccess = Bool
+
+data LightArmor
+  = Padded
+  | Leather
+  | StuddedLeather
+  deriving (Show, Eq)
+
+data MediumArmor
+  = Hide
+  | ChainShirt
+  | ScaleMail
+  | Breastplate
+  | HalfPlate
+  deriving (Show, Eq)
+
+data HeavyArmor
+  = RingMail
+  | ChainMail
+  | Splint
+  | Plate
+  deriving (Show, Eq)
+
+data ArmorType
+  = LightArmor LightArmor
+  | MediumArmor MediumArmor
+  | HeavyArmor HeavyArmor
+  | Shield 
+  deriving (Show, Eq)
+
+data DiceRoll = DiceRoll
+ { numDice :: Int
+ , diceType :: Int}
+ deriving (Show, Eq)
+
+data DiceKeep
+  = KeepHighest Int
+  | KeepLowest Int
+  deriving (Show, Eq)
+
+data DiceDrop
+  = DropHighest Int
+  | DropLowest Int
+  deriving (Show, Eq)
+
+newtype DiceReroll = DiceReroll Int deriving (Show, Eq)
+
+type DiceExplosion = Bool
+
+type DiceExpression = (DiceRoll, Maybe DiceKeep, [DiceDrop], [DiceReroll], DiceExplosion)
+
+data Cost = Cost { pp :: Int, gp :: Int, ep :: Int, sp :: Int, cp :: Int } deriving (Show, Eq)
+
+data Weight
+  = Whole Int
+  | Fraction (Int, Int)
+  deriving (Show, Eq)
 
 data Ability = 
   Charisma |

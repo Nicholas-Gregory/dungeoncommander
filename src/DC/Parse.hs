@@ -10,10 +10,13 @@ module DC.Parse (
   string,
   space,
   whitespace,
-  number
+  number,
+  empty,
+  caseInsensitiveString,
+  caseInsensitiveChar
   ) where
 import Control.Applicative (Alternative(empty, (<|>), some), optional)
-import Data.Char (isDigit, isSpace)
+import Data.Char (isDigit, isSpace, toUpper, toLower)
 import DC.Error ( AppError(..), newBaseError, ErrorDetail (ParseError), ErrorContextFrame(..), annotateErrorPure )
 
 newtype Parser a = Parser { runParser :: String -> Either AppError (a, String) }
@@ -36,7 +39,7 @@ instance Applicative Parser where
 
 instance Alternative Parser where
   empty :: Parser a
-  empty = Parser $ const $ Left $ newBaseError $ ParseError "Empty parser"
+  empty = Parser $ const $ Left $ newBaseError $ ParseError "Parsing error"
   (<|>) :: Parser a -> Parser a -> Parser a
   (Parser a) <|> (Parser b) = Parser $ \input -> case a input of
     Right result -> Right result
@@ -88,3 +91,11 @@ whitespace = some $ sat "Expected some whitespace" isSpace
 
 number :: Parser Int
 number = (\s -> read s :: Int) <$> some digit
+
+caseInsensitiveChar :: Char -> Parser Char
+caseInsensitiveChar c = sat ("Expected '" <> [c] <> "' or '" <> [toUpper c] <> "'") ((== c) . toLower)
+
+caseInsensitiveString :: String -> Parser String
+caseInsensitiveString "" = empty
+caseInsensitiveString [x] = (: []) <$> caseInsensitiveChar x
+caseInsensitiveString (x:xs) = (:) <$> caseInsensitiveChar x <*> caseInsensitiveString xs

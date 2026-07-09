@@ -12,7 +12,6 @@ import Control.Monad (join, when, unless)
 import DC.Parse (Parser(runParser))
 import System.Random (getStdGen, mkStdGen)
 import Text.Read (readMaybe)
-import DC.Dice (processExpression)
 import qualified Data.Map as M
 import Debug.Trace (trace)
 import Data.Map (mapMaybe)
@@ -38,6 +37,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import Control.Concurrent (writeList2Chan)
+import DC.DActions (saveEntities)
 
 processCommand :: KM.KeyMap Entity -> EntityAction -> AppM Env ()
 processCommand _ (SceneA (SceneCreate (CreateScene id sName x y))) = do
@@ -382,6 +382,116 @@ processCommand containers (ContainerA (ContainerUpdate (UpdateContainer nid n co
       deleteEntity id
       removeEntityFromOutputEntities id) $ KM.toList containers
 processCommand containers (ContainerA ContainerDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList containers
+processCommand _ (MountA (MountCreate (CreateMount id n s c))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let newMount = Mount
+        { speed = s
+        , carryingCapacity = c
+        , entityInfo = info}
+  
+  saveEntity id newMount
+  addEntityToOutputEntities id newMount
+processCommand mounts (MountA (MountUpdate (UpdateMount nid n s c))) = do
+  when (KM.size mounts > 1 && isJust nid) $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+  traverse_ (\(k, m) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo m) n
+    let newSpeed = fromMaybe (speed m) s
+    let newCapacity = fromMaybe (carryingCapacity m) c
+    let newInfo = (entityInfo m) { name = newName }
+    let newMount = Mount
+          { entityInfo = newInfo
+          , speed = newSpeed
+          , carryingCapacity = newCapacity}
+    
+    saveEntity newId newMount
+    addEntityToOutputEntities newId newMount
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList mounts
+processCommand mounts (MountA MountDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList mounts
+processCommand _ (SpellA (SpellCreate (CreateSpell id n l ri a ra c d t aoe s at))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let newSpell = Spell
+        { entityInfo = info 
+        , level = l
+        , ritual = ri
+        , action = a
+        , range = ra
+        , components = c
+        , duration = d
+        , targets = t
+        , aoe = aoe
+        , save = s
+        , attack = at}
+
+  saveEntity id newSpell
+  addEntityToOutputEntities id newSpell
+processCommand spells (SpellA (SpellUpdate (UpdateSpell nid n l ri a ra c d t naoe sa at))) = do
+  when (KM.size spells > 1 && isJust nid) $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+  traverse_ (\(k, s) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo s) n
+    let newLevel = fromMaybe (level s) l
+    let newRitual = fromMaybe (ritual s) ri
+    let newAction = fromMaybe (action s) a
+    let newRange = fromMaybe (range s) ra
+    let newComponents = fromMaybe (components s) c
+    let newDuration = fromMaybe (duration s) d
+    let newTargets = fromMaybe (targets s) t
+    let newAoe = fromMaybe (aoe s) naoe
+    let newSave = fromMaybe (save s) sa
+    let newAttack = fromMaybe (attack s) at
+    let newInfo = (entityInfo s) { name = newName }
+    let newSpell = Spell
+          { entityInfo = newInfo
+          , level = newLevel
+          , ritual = newRitual
+          , action = newAction
+          , range = newRange
+          , components = newComponents
+          , duration = newDuration
+          , targets = newTargets
+          , aoe = newAoe
+          , save = newSave
+          , attack = newAttack}
+    
+    saveEntity newId newSpell
+    addEntityToOutputEntities newId newSpell
+
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id
+    ) $ KM.toList spells
+processCommand spells (SpellA SpellDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList spells
+processCommand _ (MoneyA (MoneyCreate (CreateMoney id n a))) = do
+  let info = EntityInfo { name = n, children = EntityChildren [] }
+  let newMoney = Money { entityInfo = info, amount = a }
+
+  saveEntity id newMoney
+  addEntityToOutputEntities id newMoney
+processCommand money (MoneyA (MoneyUpdate (UpdateMoney nid n a))) = do
+  when (KM.size money > 1 && isJust nid) $ do throwBaseError $ OtherError "Cannot update multiple IDs simultaneously"
+
+  traverse_ (\(k, m) -> do
+    let id = K.toString k
+    let newId = fromMaybe id nid
+    let newName = fromMaybe (name $ entityInfo m) n
+    let newAmount = fromMaybe (amount m) a
+    let newInfo = (entityInfo m) { name = newName }
+    let newMoney = Money { entityInfo = newInfo, amount = newAmount }
+    
+    saveEntity newId newMoney
+    addEntityToOutputEntities newId newMoney
+    
+    when (id /= newId) $ do
+      deleteEntity id
+      removeEntityFromOutputEntities id) $ KM.toList money
+processCommand money (MoneyA MoneyDelete) = traverse_ (\(k, _) -> deleteEntity $ K.toString k) $ KM.toList money
 
 runApp :: RootOptions -> Socket -> AppM Env ()
 runApp opts sock = do
@@ -409,24 +519,50 @@ runApp opts sock = do
                 (ItemCommand {}) -> KM.filter (\case
                   Item {} -> True
                   _ -> False)
+                (ArmorCommand {}) -> KM.filter (\case
+                  Armor {} -> True
+                  _ -> False)
+                (WeaponCommand {}) -> KM.filter (\case
+                  WeaponEntity {} -> True
+                  _ -> False)
+                (ContainerCommand {}) -> KM.filter (\case
+                  Container {} -> True
+                  _ -> False)
+                (MountCommand {}) -> KM.filter (\case
+                  Mount {} -> True
+                  _ -> False)
+                (SpellCommand {}) -> KM.filter (\case
+                  Spell {} -> True
+                  _ -> False)
+                (MoneyCommand {}) -> KM.filter (\case
+                  Money {} -> True
+                  _ -> False)
               opt = case rootCommand of
                 (SceneCommand opt) -> opt
                 (ActorCommand opt) -> opt
                 (ObjectCommand opt) -> opt
                 (TrapCommand opt) -> opt
                 (ItemCommand opt) -> opt
+                (ArmorCommand opt) -> opt
+                (WeaponCommand opt) -> opt
+                (ContainerCommand opt) -> opt
+                (MountCommand opt) -> opt
+                (SpellCommand opt) -> opt
+                (MoneyCommand opt) -> opt
               filteringCondition = case opt of
                 (SceneOptions ids filterX filterY _) -> not (null ids) || isJust (filterX <|> filterY)
                 (ActorOptions ids filterX filterY filterCHp filterMHp filterCha filterInt filterCon filterStr filterDex filterWis filterHd filterAc filterLevel _) -> not (null ids) || isJust (filterX <|> filterY <|> filterCHp)
                 (ObjectOptions ids filterX filterY filterAc filterMhp filterChp _) -> not (null ids) || isJust (filterX <|> filterY <|> filterAc <|> filterMhp <|> filterChp)
                 (TrapOptions ids filterX filterY filterDdc filterAb filterSdc _) -> not (null ids) || isJust (filterX <|> filterY <|> filterDdc <|> filterAb <|> filterSdc)
                 (ItemOptions ids filterCost filterWeight _) -> not (null ids) || isJust (filterCost <|> filterWeight)
+                (ArmorOptions ids filterCost filterWeight filterAc filterStr filterStealth filterType _) -> not (null ids) || isJust (filterCost <|> filterWeight <|> filterType) || isJust (filterAc <|> filterStr) || isJust filterStealth
               ids = case opt of
                 (SceneOptions ids _ _ _) -> ids
                 (ActorOptions { actorIds = ids }) -> ids
                 (ObjectOptions { objectIds = ids }) -> ids
                 (TrapOptions { trapIds = ids }) -> ids
                 (ItemOptions { itemIds = ids }) -> ids
+                (ArmorOptions { armorIds = ids }) -> ids
               filters = case opt of
                 (SceneOptions _ filterX filterY _) ->
                   [ \s -> maybe True (\fx -> fx == fst (dimensions s)) filterX
@@ -460,6 +596,13 @@ runApp opts sock = do
                 (ItemOptions _ filterCost filterWeight _) ->
                   [ \i -> maybe True (\fc -> fc == cost (itemInfo i)) filterCost
                   , \i -> maybe True (\fw -> fw == weight (itemInfo i)) filterWeight]
+                (ArmorOptions _ filterCost filterWeight filterAc filterStr filterStealth filterType _) ->
+                  [ \a -> maybe True (\fc -> fc == cost (itemInfo a)) filterCost
+                  , \a -> maybe True (\fw -> fw == weight (itemInfo a)) filterWeight
+                  , \a -> maybe True (\fac -> fac == ac a) filterAc
+                  , \a -> maybe True (\fstr -> fstr == str a) filterStr
+                  , \a -> maybe True (\fst -> fst == stealthDisadvantage a) filterStealth
+                  , \a -> maybe True (\ft -> ft == armorType a) filterType]
           in if filteringCondition
             then do
               -- CLI entity selection, filtering by command options
