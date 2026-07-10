@@ -12,15 +12,19 @@ module DC.Parsers (
   diceExplosionString,
   diceExpressionString,
   abilityString,
-  weaponString
+  weaponString,
+  weaponProficiencyString,
+  damageTypeString,
+  speedString
 ) where
 
 import DC.Parse
 import DC.Types
 import Control.Applicative ( Alternative((<|>), many), optional )
 import Data.Foldable (Foldable(foldl'))
-import DC.Error (newBaseError, ErrorDetail (ParseError))
+import DC.Error (newBaseError, ErrorDetail (ParseError), AppError (AppError))
 import Data.Maybe (fromMaybe)
+import Data.Char (isAlpha, toLower)
 
 weaponProperty :: Parser WeaponProperty
 weaponProperty = Ammunition <$ string "ammunition"
@@ -219,3 +223,43 @@ weaponString = (SimpleMelee Club <$ caseInsensitiveString "club")
       <|> caseInsensitiveString "long bow"
       <|> caseInsensitiveString "bow, long"))
   <|> (MartialRanged Net <$ caseInsensitiveString "net")
+
+weaponProficiencyString :: Parser WeaponProficiency
+weaponProficiencyString = (Simple <$ caseInsensitiveString "simple")
+  <|> (Martial <$ caseInsensitiveString "martial")
+  <|> Specific <$> weaponString
+
+damageTypeString :: Parser DamageType
+damageTypeString = (Acid <$ caseInsensitiveString "acid")
+  <|> (Bludgeoning <$ caseInsensitiveString "bludgeoning")
+  <|> (Cold <$ caseInsensitiveString "cold")
+  <|> (Fire <$ caseInsensitiveString "fire")
+  <|> (Force <$ caseInsensitiveString "force")
+  <|> (Lightning <$ caseInsensitiveString "lightning")
+  <|> (Necrotic <$ caseInsensitiveString "necrotic")
+  <|> (Piercing <$ caseInsensitiveString "piercing")
+  <|> (Poison <$ caseInsensitiveString "poison")
+  <|> (Psychic <$ caseInsensitiveString "psychic")
+  <|> (Radiant <$ caseInsensitiveString "radiant")
+  <|> (Slashing <$ caseInsensitiveString "slashing")
+  <|> (Thunder <$ caseInsensitiveString "thunder")
+
+speedString :: Parser Speed
+speedString = do
+  t <- caseInsensitiveString "walk"
+    <|> caseInsensitiveString "swim"
+    <|> caseInsensitiveString "climb"
+    <|> caseInsensitiveString "fly"
+    <|> caseInsensitiveString "burrow"
+  _ <- optional space
+  n <- number
+  _ <- optional space
+  _ <- caseInsensitiveString "ft."
+
+  case map toLower t of
+    "walk" -> return $ Walk n
+    "swim" -> return $ Swim n
+    "climb" -> return $ Climb n
+    "fly" -> return $ Fly n
+    "burrow" -> return $ Burrow n
+    _ -> Parser $ const $ Left $ newBaseError $ ParseError "Expected speed type"

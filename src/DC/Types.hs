@@ -41,7 +41,8 @@ module DC.Types (
   DiceKeep(..),
   DiceDrop(..),
   DiceExplosion,
-  DiceExpression
+  DiceExpression,
+  Speed(..)
 ) where
 import Data.List (find)
 import qualified Data.Map as M
@@ -105,7 +106,7 @@ data LightArmor
   = Padded
   | Leather
   | StuddedLeather
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data MediumArmor
   = Hide
@@ -113,26 +114,26 @@ data MediumArmor
   | ScaleMail
   | Breastplate
   | HalfPlate
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data HeavyArmor
   = RingMail
   | ChainMail
   | Splint
   | Plate
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data ArmorType
   = LightArmor LightArmor
   | MediumArmor MediumArmor
   | HeavyArmor HeavyArmor
   | Shield 
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data DiceRoll = DiceRoll
  { numDice :: Int
  , diceType :: Int}
- deriving (Show, Eq)
+ deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data DiceKeep
   = KeepHighest Int
@@ -150,12 +151,12 @@ type DiceExplosion = Bool
 
 type DiceExpression = (DiceRoll, Maybe DiceKeep, [DiceDrop], [DiceReroll], DiceExplosion)
 
-data Cost = Cost { pp :: Int, gp :: Int, ep :: Int, sp :: Int, cp :: Int } deriving (Show, Eq)
+data Cost = Cost { pp :: Int, gp :: Int, ep :: Int, sp :: Int, cp :: Int } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data Weight
   = Whole Int
   | Fraction (Int, Int)
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data Ability = 
   Charisma |
@@ -313,6 +314,14 @@ data EntityChildType =
   WieldedWeapon
   deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
+data Speed
+  = Walk Int
+  | Swim Int
+  | Climb Int
+  | Fly Int
+  | Burrow Int
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
 data EntityChild = EntityChild { 
   childType :: EntityChildType,
   childId :: String
@@ -329,7 +338,7 @@ newtype SaveProficiencies = SaveProficiencies [Ability] deriving (Show, Eq, Gene
 
 newtype WeaponProficiencies = WeaponProficiencies [WeaponProficiency] deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
-data ItemInfo = ItemInfo { cost :: String, weight :: String } deriving (Show, Eq, Generic, FromJSON, ToJSON)
+data ItemInfo = ItemInfo { cost :: String, weight :: Weight } deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
 data Entity = 
   Scene {
@@ -347,7 +356,7 @@ data Entity =
     str :: Int,
     dex :: Int,
     wis :: Int,
-    hitDice :: String,
+    hitDice :: DiceRoll,
     ac :: Int,
     level :: Int,
     saveProficiencies :: SaveProficiencies,
@@ -370,7 +379,7 @@ data Entity =
     detectDc :: Int,
     attackBonus :: Int,
     saveDc :: Int,
-    trapDamage :: String,
+    trapDamage :: (DiceRoll, DamageType),
     position ::  (Int, Int)
   } |
   Item {
@@ -383,24 +392,24 @@ data Entity =
     ac :: Int,
     str :: Int,
     stealthDisadvantage :: Bool,
-    armorType :: String
+    armorType :: ArmorType
   } |
   WeaponEntity {
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
-    weaponDamage :: (String, DamageType),
+    weaponDamage :: (DiceRoll, DamageType),
     properties :: WeaponProperties,
     weapon :: Weapon
   } |
   Container {
     entityInfo :: EntityInfo,
     itemInfo :: ItemInfo,
-    capacity :: String
+    capacity :: Weight
   } |
   Mount {
     entityInfo :: EntityInfo,
     speed :: Int,
-    carryingCapacity :: Int
+    carryingCapacity :: Weight
   } |
   Spell {
     entityInfo :: EntityInfo,

@@ -456,7 +456,7 @@ printActor v eid = err "printActor"
           <> ", Strength: " <> show eStr
           <> ", Dexterity: " <> show eDex
           <> ", Wisdom: " <> show eWis
-          <> ", Hit Dice: " <> eHd
+          <> ", Hit Dice: " <> show eHd
           <> ", Armor Class: " <> show eAc
           <> ", Level: " <> show eL
           <> ", Save Proficiencies: " <> foldl' (++) "" (map (\p -> case JSON.toJSON p of 
@@ -531,7 +531,7 @@ printTrap v eid = err "printTrap"
           <> ", Detect DC: " <> show eDetect
           <> ", Attack Bonus: " <> show eAttack
           <> ", Save DC: " <> show eSave
-          <> ", Damage: " <> d
+          <> ", Damage: " <> show d
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
     case v of
@@ -580,7 +580,7 @@ printArmor v eid = err "printArmor"
           <> ", Armor Class: " <> show eAc
           <> ", Strength Req: " <> show eStr
           <> ", Stealth Disadvantage: " <> show eSd
-          <> ", Type: " <> eAt
+          <> ", Type: " <> show eAt
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
     case v of
@@ -630,7 +630,7 @@ printContainer v eid = err "printContainer"
         iiJson = BS.unpack $ JSON.encode (itemInfo entity)
         cap = capacity entity
         vNameString = "ID: " <> eid <> ", Name: " <> eName
-        vStatsString = vNameString <> ", ItemInfo: " <> iiJson <> ", Capacity: " <> cap
+        vStatsString = vNameString <> ", ItemInfo: " <> iiJson <> ", Capacity: " <> show cap
         vAllString = vStatsString <> ", Children IDs: " <> foldl' (++) "" (map (\c -> childId c ++ ", ") eChildren)
 
     case v of
