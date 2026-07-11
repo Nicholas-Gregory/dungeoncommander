@@ -42,7 +42,11 @@ module DC.Types (
   DiceDrop(..),
   DiceExplosion,
   DiceExpression,
-  Speed(..)
+  Speed(..),
+  SpellComponent(..),
+  SpellComponents,
+  SpellRange(..),
+  SpellAoe(..)
 ) where
 import Data.List (find)
 import qualified Data.Map as M
@@ -322,6 +326,29 @@ data Speed
   | Burrow Int
   deriving (Show, Eq, Generic, FromJSON, ToJSON)
 
+data SpellRange
+  = Self
+  | Touch
+  | Unlimited
+  | Distance Int
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
+data SpellComponent
+  = Verbal
+  | Somatic
+  | Material String
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
+data SpellAoe
+  = Cone Int
+  | Cube Int
+  | Cylinder Int Int
+  | Line Int Int
+  | Sphere Int
+  deriving (Show, Eq, Generic, FromJSON, ToJSON)
+
+type SpellComponents = [SpellComponent]
+
 data EntityChild = EntityChild { 
   childType :: EntityChildType,
   childId :: String
@@ -416,11 +443,11 @@ data Entity =
     level :: Int,
     ritual :: Bool,
     action :: String,
-    range :: String,
-    components :: String,
+    range :: SpellRange,
+    components :: SpellComponents,
     duration :: String,
     targets :: String,
-    aoe :: String,
+    aoe :: SpellAoe,
     save :: String,
     attack :: String
   } | 
